@@ -1250,7 +1250,8 @@
                 formData.append('imagem', blob, 'rosto.jpg');
                 formData.append('payment_id', 'pix_aprovado_sessao');
 
-                const response = await fetch('http://localhost:3000/api/escanear-rosto', {
+                // Rota relativa ajustada para produção
+                const response = await fetch('/api/escanear-rosto', {
                     method: 'POST',
                     body: formData
                 });
@@ -1359,7 +1360,8 @@
             startPixTimer(600); // Inicia temporizador de 10 min (600s)
 
             try {
-                const response = await fetch('http://localhost:3000/api/criar-pix', {
+                // Rota relativa ajustada para produção
+                const response = await fetch('/api/criar-pix', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1380,7 +1382,7 @@
 
             } catch (err) {
                 console.error(err);
-                document.getElementById('qrCodeBox').innerHTML = '<p style="font-size: 0.7rem; color: red; text-align:center;">Erro de conexão com o servidor local (porta 3000).</p>';
+                document.getElementById('qrCodeBox').innerHTML = '<p style="font-size: 0.7rem; color: red; text-align:center;">Erro de conexão com o servidor.</p>';
             }
         }
 
