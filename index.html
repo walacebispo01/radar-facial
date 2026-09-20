@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>radar facial - Investigador de Perfil Biométrico</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Cropper.js CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <style>
+        :root {
+            --bg-color: #030712;
+            --card-bg: rgba(15, 23, 42, 0.75);
+            --card-border: rgba(245, 158, 11, 0.25);
+            --accent: #00f2fe;
+            --text: #f9fafb;
+            --text-dim: #9ca3af;
+            --gold: #f59e0b;
+            --gold-glow: rgba(245, 158, 11, 0.3);
+            --gold-gradient: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 50% 0%, rgba(245, 158, 11, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 100% 100%, rgba(0, 242, 254, 0.03) 0%, transparent 40%);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+            transition: filter 0.3s ease;
+        }
+
+        body.modal-open .main-content-wrapper {
+            filter: blur(12px);
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .main-content-wrapper {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: filter 0.3s ease;
+        }
+
+        header {
+            width: 100%;
+            max-width: 1100px;
+            padding: 24px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(12px);
+        }
+
+        .logo {
+            font-weight: 900;
+            font-size: 1.8rem;
+            letter-spacing: -1px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-transform: lowercase;
+            color: #fff;
+        }
+
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--gold);
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.3rem;
+            box-shadow: 0 0 20px var(--gold-glow);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            position: relative;
+        }
+
+        .logo-icon::after {
+            content: '';
+            position: absolute;
+            top: 5px; right: 5px;
+            width: 6px; height: 6px;
+            background: #10b981;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #10b981;
+        }
+
+        .logo span {
+            background: var(--gold-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .credits-badge {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            color: #34d399;
+            padding: 8px 16px;
+            border-radius: 100px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 24px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-dim);
+        }
+
+        .nav-links span { cursor: pointer; transition: color 0.2s; }
+        .nav-links span:hover { color: var(--gold); }
+
+        .hero {
+            text-align: center;
+            margin-top: 35px;
+            max-width: 720px;
+            padding: 0 20px;
+            transition: all 0.4s ease;
+        }
+
+        .investigator-badge {
+            background: rgba(245, 158, 11, 0.08);
+            border: 1px solid rgba(245, 158, 11, 0.25);
+            color: var(--gold);
+            padding: 6px 16px;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(8px);
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            line-height: 1.15;
+            margin-bottom: 16px;
+            letter-spacing: -1.5px;
+        }
+
+        .hero h1 span {
+            background: var(--gold-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            color: var(--text-dim);
+            font-size: 1.05rem;
+            margin-top: 0;
+            margin-bottom: 30px;
+        }
+
+        .orbit-container {
+            position: relative;
+            width: 320px;
+            height: 320px;
+            margin: 10px auto 30px auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .orbit-ring {
+            position: absolute;
+            width: 260px;
+            height: 260px;
+            border: 1.5px dashed rgba(245, 158, 11, 0.25);
+            border-radius: 50%;
+            animation: spin 20s linear infinite;
+            transition: all 0.5s ease;
+        }
+
+        .orbit-ring.scanning {
+            animation: spinScan 6s ease-in-out infinite !important;
+            border-color: var(--gold) !important;
+            box-shadow: 0 0 35px var(--gold-glow);
+        }
+
+        .upload-center {
+            position: relative;
+            z-index: 10;
+            background: rgba(17, 24, 39, 0.9);
+            border: 2px solid var(--gold);
+            color: #fff;
+            border-radius: 50%;
+            width: 135px;
+            height: 135px;
+            box-shadow: 0 0 35px var(--gold-glow), 0 20px 40px rgba(0,0,0,0.8);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 0;
+        }
+
+        .upload-center.pulse-scan {
+            animation: radarPulse 1.2s ease-in-out infinite alternate;
+        }
+
+        .upload-preview-thumb {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+            display: none;
+            position: absolute;
+            top: 0; left: 0;
+        }
+
+        /* Linha de Scanner Laser sobre a Foto */
+        .scanner-laser {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: #00f2fe;
+            box-shadow: 0 0 12px #00f2fe, 0 0 20px #00f2fe;
+            display: none;
+            z-index: 15;
+            animation: laserScan 1.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes laserScan {
+            0% { top: 0%; opacity: 0.8; }
+            50% { opacity: 1; }
+            100% { top: 95%; opacity: 0.8; }
+        }
+
+        /* Malha Cibernética de Rastreamento Biométrico */
+        .face-mesh-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            border-radius: 50%;
+            display: none;
+            z-index: 12;
+            pointer-events: none;
+        }
+
+        .mesh-dot {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #ffffff, 0 0 12px #00f2fe;
+            transition: all 1.2s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .face-mesh-svg {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 11;
+            pointer-events: none;
+        }
+
+        .mesh-line {
+            stroke: rgba(255, 255, 255, 0.4);
+            stroke-width: 0.8;
+            stroke-dasharray: 2, 2;
+            transition: all 1.2s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .upload-placeholder-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            text-align: center;
+        }
+
+        .upload-placeholder-content i {
+            font-size: 1.5rem;
+            color: var(--gold);
+        }
+
+        .upload-placeholder-content span {
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .icon-item {
+            position: absolute;
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: #0f172a;
+            border: 1.5px solid rgba(255,255,255,0.1);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.4rem;
+            animation: counter-spin 20s linear infinite;
+            transition: all 0.3s ease;
+        }
+
+        .orbit-ring.scanning .icon-item {
+            animation: counter-spinScan 6s ease-in-out infinite !important;
+        }
+
+        .icon-item.active-scan {
+            transform: scale(1.35) !important;
+            border-color: var(--gold) !important;
+            box-shadow: 0 0 25px var(--gold) !important;
+            background: #1e293b !important;
+            z-index: 12;
+        }
+
+        .icon-item:nth-child(1) { top: -26px; left: calc(50% - 26px); color: var(--gold); }
+        .icon-item:nth-child(2) { top: 25px; right: 10px; color: #ec4899; }
+        .icon-item:nth-child(3) { top: calc(50% - 26px); right: -26px; color: #0ea5e9; }
+        .icon-item:nth-child(4) { bottom: 25px; right: 10px; color: #0284c7; }
+        .icon-item:nth-child(5) { bottom: -26px; left: calc(50% - 26px); color: #ef4444; }
+        .icon-item:nth-child(6) { bottom: 25px; left: 10px; color: #dc2626; }
+        .icon-item:nth-child(7) { top: calc(50% - 26px); left: -26px; color: #06b6d4; }
+        .icon-item:nth-child(8) { top: 25px; left: 10px; color: #3b82f6; }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes counter-spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(-360deg); }
+        }
+
+        @keyframes spinScan {
+            0% { transform: rotate(0deg); }
+            50% { transform: rotate(180deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes counter-spinScan {
+            0% { transform: rotate(0deg); }
+            50% { transform: rotate(-180deg); }
+            100% { transform: rotate(-360deg); }
+        }
+
+        @keyframes radarPulse {
+            from { box-shadow: 0 0 20px var(--gold-glow); border-color: var(--gold); }
+            to { box-shadow: 0 0 50px rgba(245, 158, 11, 0.8); border-color: #fff; }
+        }
+
+        .scan-action-btn {
+            background: var(--gold-gradient);
+            color: #000;
+            border: none;
+            padding: 16px 40px;
+            font-size: 1rem;
+            font-weight: 800;
+            border-radius: 100px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 10px 30px var(--gold-glow);
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .scan-action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 35px rgba(245, 158, 11, 0.4);
+        }
+
+        /* Garantia de Varredura abaixo do botão principal */
+        .guarantee-badge {
+            margin-top: 18px;
+            font-size: 0.85rem;
+            color: #10b981;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(16, 185, 129, 0.1);
+            padding: 8px 18px;
+            border-radius: 20px;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            backdrop-filter: blur(8px);
+        }
+
+        .scan-loader {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            margin-top: 20px;
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            max-width: 360px;
+            height: 8px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 100px;
+            border: 1px solid rgba(255,255,255,0.1);
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            width: 0%;
+            height: 100%;
+            background: var(--gold-gradient);
+            border-radius: 100px;
+            transition: width 0.1s linear;
+        }
+
+        .results-section {
+            display: none;
+            width: 100%;
+            max-width: 600px;
+            margin-top: 30px;
+            text-align: left;
+            position: relative;
+        }
+
+        .results-header {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #34d399;
+            padding: 14px 20px;
+            border-radius: 16px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+            text-align: center;
+            backdrop-filter: blur(8px);
+        }
+
+        .result-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 14px;
+            backdrop-filter: blur(12px);
+            position: relative;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+
+        .blur-target {
+            filter: blur(10px);
+            user-select: none;
+            pointer-events: none;
+            transition: filter 0.5s ease;
+        }
+
+        .result-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            background: #1f2937;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .social-badge-overlay {
+            position: absolute;
+            bottom: 12px;
+            left: 52px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #0f172a;
+            border: 1.5px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.8);
+            z-index: 2;
+        }
+
+        .result-info { flex: 1; }
+        .result-info h4 { margin: 0 0 4px 0; font-size: 1rem; color: #fff; }
+        
+        .social-tag-title {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-bottom: 3px;
+        }
+
+        .result-info p { margin: 0; font-size: 0.8rem; color: var(--text-dim); }
+
+        .btn-card-unlock {
+            background: var(--gold-gradient);
+            color: #000;
+            border: none;
+            padding: 10px 18px;
+            font-size: 0.85rem;
+            font-weight: 800;
+            border-radius: 100px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 4px 15px var(--gold-glow);
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .btn-card-unlock:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
+        }
+
+        .plans-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 16px 0;
+            max-height: 380px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .plan-card {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            text-align: left;
+        }
+
+        .plan-card:hover {
+            border-color: var(--gold);
+            background: rgba(245, 158, 11, 0.08);
+            transform: translateY(-2px);
+        }
+
+        .plan-card.popular {
+            border: 1.5px solid var(--gold);
+            background: rgba(245, 158, 11, 0.12);
+            position: relative;
+        }
+
+        .plan-badge {
+            position: absolute;
+            top: -9px;
+            right: 15px;
+            background: var(--gold-gradient);
+            color: #000;
+            font-size: 0.6rem;
+            font-weight: 900;
+            padding: 2px 8px;
+            border-radius: 20px;
+            text-transform: uppercase;
+        }
+
+        .plan-title {
+            font-size: 0.95rem;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 1px;
+        }
+
+        .plan-desc {
+            font-size: 0.72rem;
+            color: var(--gold);
+            font-weight: 700;
+        }
+
+        .plan-price {
+            font-size: 1.15rem;
+            font-weight: 900;
+            color: var(--gold);
+            white-space: nowrap;
+        }
+
+        /* Seção de Métricas Atualizada */
+        .stats-container {
+            display: flex;
+            gap: 40px;
+            justify-content: center;
+            margin-top: 40px;
+            margin-bottom: 50px;
+        }
+
+        .stat-card { text-align: center; }
+        .stat-card .val { font-size: 1.6rem; font-weight: 800; color: #fff; }
+        .stat-card .lbl { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* Modais */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(3, 7, 18, 0.88);
+            backdrop-filter: blur(16px);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content-crop {
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            padding: 26px;
+            border-radius: 32px;
+            width: 90%;
+            max-width: 460px;
+            text-align: center;
+            box-shadow: 0 30px 70px rgba(0,0,0,0.9), 0 0 40px var(--gold-glow);
+            color: #fff;
+            position: relative;
+            backdrop-filter: blur(20px);
+        }
+
+        /* Temporizador de Escassez no Modal do PIX */
+        .timer-box {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #ef4444;
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-weight: 800;
+            font-size: 0.85rem;
+            margin-bottom: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .crop-wrapper {
+            width: 100%;
+            height: 310px;
+            margin: 20px 0;
+            background: #030712;
+            border-radius: 24px;
+            overflow: hidden;
+            border: 1px dashed rgba(245, 158, 11, 0.3);
+            position: relative;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        .crop-wrapper img { max-width: 100%; }
+
+        .cropper-view-box {
+            outline: 2px solid var(--gold) !important;
+            border-radius: 50%;
+            box-shadow: 0 0 0 9999px rgba(3, 7, 18, 0.75);
+        }
+        .cropper-line, .cropper-point { background-color: var(--gold) !important; }
+
+        .zoom-controls-grid {
+            display: flex;
+            justify-content: center;
+            gap: 14px;
+            margin-bottom: 22px;
+        }
+
+        .btn-action-round {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+            color: #fff;
+            width: 48px;
+            height: 48px;
+            border-radius: 16px;
+            cursor: pointer;
+            font-size: 1.15rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn-action-round:hover {
+            background: rgba(245, 158, 11, 0.2);
+            border-color: var(--gold);
+            color: var(--gold);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px var(--gold-glow);
+        }
+
+        .price-tag {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--gold);
+            font-weight: 700;
+            padding: 6px 16px;
+            border-radius: 100px;
+            font-size: 0.8rem;
+            display: inline-block;
+            margin-bottom: 8px;
+            border: 1px solid rgba(245, 158, 11, 0.25);
+        }
+
+        .qr-box {
+            width: 190px;
+            height: 190px;
+            margin: 14px auto;
+            background: #fff;
+            padding: 10px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .qr-box img { width: 100%; height: 100%; border-radius: 8px; }
+
+        .btn-modal {
+            width: 100%;
+            padding: 14px;
+            border-radius: 14px;
+            border: none;
+            font-weight: 800;
+            font-size: 0.9rem;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-pay { background: var(--gold-gradient); color: #000; box-shadow: 0 8px 25px var(--gold-glow); }
+        .btn-pay:hover { opacity: 0.95; transform: translateY(-2px); box-shadow: 0 12px 30px rgba(245, 158, 11, 0.4); }
+        .btn-close { background: rgba(255,255,255,0.05); color: var(--text-dim); }
+        .btn-close:hover { background: rgba(255,255,255,0.1); color: #fff; }
+
+        /* Toast de Prova Social */
+        .social-proof-toast {
+            position: fixed;
+            bottom: 24px;
+            left: 24px;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid var(--gold);
+            border-radius: 14px;
+            padding: 12px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6), 0 0 20px var(--gold-glow);
+            z-index: 2000;
+            transform: translateY(180%);
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            backdrop-filter: blur(12px);
+        }
+
+        .social-proof-toast.show { transform: translateY(0); }
+        .social-proof-toast i { font-size: 1.3rem; color: var(--gold); }
+        .social-proof-text { font-size: 0.82rem; text-align: left; }
+        .social-proof-text strong { color: #fff; display: block; font-weight: 700; }
+        .social-proof-text span { color: var(--text-dim); font-size: 0.75rem; }
+    </style>
+</head>
+<body>
+
+    <div class="main-content-wrapper" id="mainContent">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fa-solid fa-fingerprint"></i>
+                </div>
+                <span>radar facial</span>
+            </div>
+            
+            <div class="credits-badge" id="creditsBadge">
+                <i class="fa-solid fa-coins"></i> Saldo: <span id="userCreditsCount">0</span> pesquisas
+            </div>
+
+            <div class="nav-links">
+                <span>Como funciona</span>
+                <span>Segurança</span>
+                <span>FAQ</span>
+            </div>
+        </header>
+
+        <main class="hero" id="heroSection">
+            <div class="investigator-badge">
+                <i class="fa-solid fa-shield-halved"></i> Investigador Biométrico AI
+            </div>
+
+            <h1>Investigue e encontre qualquer pessoa com <span>uma única foto.</span></h1>
+            <p>Mapeamento biométrico cruzado em tempo real em redes sociais e bancos de dados abertos.</p>
+
+            <!-- Orbit System -->
+            <div class="orbit-container">
+                <div class="orbit-ring" id="orbitRing">
+                    <div class="icon-item"><i class="fa-solid fa-user-secret"></i></div>
+                    <div class="icon-item"><i class="fa-brands fa-instagram"></i></div>
+                    <div class="icon-item"><i class="fa-brands fa-telegram"></i></div>
+                    <div class="icon-item"><i class="fa-brands fa-linkedin-in"></i></div>
+                    <div class="icon-item"><i class="fa-brands fa-youtube"></i></div>
+                    <div class="icon-item"><i class="fa-brands fa-pinterest-p"></i></div>
+                    <div class="icon-item"><i class="fa-brands fa-tiktok"></i></div>
+                    <div class="icon-item"><i class="fa-brands fa-facebook-f"></i></div>
+                </div>
+
+                <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="abrirModalZoom(event)">
+
+                <button class="upload-center" id="uploadBtn" onclick="document.getElementById('imageInput').click()">
+                    <!-- Linha de Scanner Laser -->
+                    <div class="scanner-laser" id="scannerLaser"></div>
+                    
+                    <!-- Malha Cibernética com 25 Pontos Brancos Fluídos -->
+                    <div class="face-mesh-overlay" id="faceMeshOverlay">
+                        <svg class="face-mesh-svg" id="meshSvg">
+                            <line class="mesh-line" id="l0" x1="0" y1="0" x2="0" y2="0" />
+                            <line class="mesh-line" id="l1" x1="0" y1="0" x2="0" y2="0" />
+                            <line class="mesh-line" id="l2" x1="0" y1="0" x2="0" y2="0" />
+                            <line class="mesh-line" id="l3" x1="0" y1="0" x2="0" y2="0" />
+                            <line class="mesh-line" id="l4" x1="0" y1="0" x2="0" y2="0" />
+                            <line class="mesh-line" id="l5" x1="0" y1="0" x2="0" y2="0" />
+                            <line class="mesh-line" id="l6" x1="0" y1="0" x2="0" y2="0" />
+                            <line class="mesh-line" id="l7" x1="0" y1="0" x2="0" y2="0" />
+                        </svg>
+                        <div id="meshDotsContainer"></div>
+                    </div>
+
+                    <img id="thumbPreview" class="upload-preview-thumb" src="" alt="Alvo Biométrico">
+                    <div id="uploadPlaceholder" class="upload-placeholder-content">
+                        <i class="fa-solid fa-camera"></i>
+                        <span>Carregar Foto</span>
+                    </div>
+                </button>
+            </div>
+
+            <button class="scan-action-btn" id="scanBtn" onclick="clicarProcurar()">
+                <i class="fa-solid fa-magnifying-glass"></i> PROCURAR RESULTADOS
+            </button>
+
+            <!-- Garantia de Varredura -->
+            <br>
+            <div class="guarantee-badge">
+                <i class="fa-solid fa-shield-halved"></i> Garantia de Varredura: Processamento biométrico de alta precisão em múltiplos bancos de dados.
+            </div>
+        </main>
+
+        <!-- Loader Animado -->
+        <div class="scan-loader" id="scanLoader">
+            <div style="font-size: 0.85rem; color: var(--gold); font-weight: 700; letter-spacing: 0.5px;" id="loaderText">
+                <i class="fa-solid fa-spinner fa-spin"></i> MAPEANDO PONTOS BIOMÉTRICOS (0%)...
+            </div>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="progressFill"></div>
+            </div>
+        </div>
+
+        <!-- Resultados Dinâmicos -->
+        <div class="results-section" id="resultsSection">
+            <div class="results-header" id="resultsCountHeader">
+                <i class="fa-solid fa-circle-check"></i> 4 CORRESPONDÊNCIAS DE ALTA PRECISÃO ENCONTRADAS!
+            </div>
+
+            <div id="resultsListContainer"></div>
+        </div>
+
+        <!-- Stats Atualizados com Métricas Realistas -->
+        <div class="stats-container" id="statsContainer">
+            <div class="stat-card">
+                <div class="val">250M+</div>
+                <div class="lbl">Rostos Mapeados</div>
+            </div>
+            <div class="stat-card">
+                <div class="val">20.480</div>
+                <div class="lbl">Buscas Concluídas</div>
+            </div>
+            <div class="stat-card">
+                <div class="val">99.2%</div>
+                <div class="lbl">Precisão Biométrica</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Crop -->
+    <div class="modal" id="modalCrop">
+        <div class="modal-content-crop">
+            <h3 style="margin: 0; color: var(--gold); font-size: 1.3rem; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                <i class="fa-solid fa-crosshairs"></i> Centralizar Rosto
+            </h3>
+            <p style="font-size: 0.82rem; color: var(--text-dim); margin-top: 6px;">Ajuste o enquadramento do alvo para otimizar o reconhecimento facial.</p>
+
+            <div class="crop-wrapper">
+                <img id="cropImage" src="" alt="Imagem para recorte">
+            </div>
+
+            <div class="zoom-controls-grid">
+                <button class="btn-action-round" title="Aumentar Zoom" onclick="zoomImage(0.1)"><i class="fa-solid fa-plus"></i></button>
+                <button class="btn-action-round" title="Diminuir Zoom" onclick="zoomImage(-0.1)"><i class="fa-solid fa-minus"></i></button>
+                <button class="btn-action-round" title="Girar Imagem" onclick="rotateImage(90)"><i class="fa-solid fa-rotate-right"></i></button>
+            </div>
+
+            <button class="btn-modal btn-pay" onclick="confirmarRecorte()">
+                <i class="fa-solid fa-check"></i> Confirmar Enquadramento
+            </button>
+            <button class="btn-modal btn-close" onclick="fecharModalCrop()">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Modal de Seleção de Pacotes -->
+    <div class="modal" id="modalPlanos">
+        <div class="modal-content-crop" style="max-width: 460px;">
+            <h3 style="margin: 0; color: #fff; font-size: 1.3rem; font-weight: 800;">
+                Escolha seu Pacote de Pesquisas
+            </h3>
+            <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 4px; margin-bottom: 12px;">
+                Selecione o pacote para recarregar ou adquirir créditos de busca.
+            </p>
+
+            <div class="plans-grid">
+                <div class="plan-card" onclick="selecionarPlano('Pesquisa Única', 6.99, 1)">
+                    <div>
+                        <div class="plan-title">Pesquisa Única</div>
+                        <div class="plan-desc">1 Crédito de pesquisa</div>
+                    </div>
+                    <div class="plan-price">R$ 6,99</div>
+                </div>
+
+                <div class="plan-card popular" onclick="selecionarPlano('Pacote Investigador', 24.99, 10)">
+                    <span class="plan-badge">Mais Escolhido</span>
+                    <div>
+                        <div class="plan-title">Pacote Investigador</div>
+                        <div class="plan-desc">10 Créditos de pesquisa</div>
+                    </div>
+                    <div class="plan-price">R$ 24,99</div>
+                </div>
+
+                <div class="plan-card" onclick="selecionarPlano('Pacote Avançado', 49.99, 40)">
+                    <div>
+                        <div class="plan-title">Pacote Avançado</div>
+                        <div class="plan-desc">40 Créditos de pesquisa</div>
+                    </div>
+                    <div class="plan-price">R$ 49,99</div>
+                </div>
+
+                <div class="plan-card" onclick="selecionarPlano('Pacote Master', 99.99, 90)">
+                    <div>
+                        <div class="plan-title">Pacote Master</div>
+                        <div class="plan-desc">90 Créditos de pesquisa</div>
+                    </div>
+                    <div class="plan-price">R$ 99,99</div>
+                </div>
+            </div>
+
+            <button class="btn-modal btn-close" onclick="fecharModalPlanos()">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Modal do PIX com Temporizador de Urgência -->
+    <div class="modal" id="modalPix">
+        <div class="modal-content-crop" style="max-width: 400px;">
+            <div class="timer-box">
+                <i class="fa-solid fa-clock"></i> Oferta reservada por: <span id="pixTimer">09:59</span>
+            </div>
+            <br>
+            <span class="price-tag" id="pixModalTag">PACOTE</span>
+            <h2 style="margin: 4px 0; font-size: 2rem; color: var(--gold);" id="pixModalValor">R$ 0,00</h2>
+            <p style="font-size: 0.8rem; color: var(--text-dim);" id="pixModalDescricao">Pague via PIX para liberar os créditos instantaneamente.</p>
+
+            <div class="qr-box" id="qrCodeBox"></div>
+
+            <button class="btn-modal btn-pay" onclick="copiarPix()">
+                <i class="fa-solid fa-copy"></i> Copiar Código PIX
+            </button>
+
+            <button class="btn-modal btn-close" onclick="voltarParaPlanos()">Voltar aos Pacotes</button>
+        </div>
+    </div>
+
+    <!-- Toast de Prova Social Automático -->
+    <div class="social-proof-toast" id="socialProofToast">
+        <i class="fa-solid fa-bolt"></i>
+        <div class="social-proof-text">
+            <strong id="proofUser">Usuário em São Paulo</strong>
+            <span>Acabou de adquirir o Pacote Investigador (10 buscas).</span>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    <script>
+        let cropper = null;
+        let finalCroppedImage = null;
+        let pixCopiaCola = "";
+        let scanHighlightInterval = null;
+        let meshMoveInterval = null;
+        let timerInterval = null;
+
+        let saldoCreditos = 0;
+        let creditosCompradosNestaSessao = 10; 
+
+        const perfisDatabaseFalsos = [
+            { rede: 'Instagram', icon: 'fa-instagram', color: '#e1306c', usernames: ['@marcelo_sp92', '@carol.vlog', '@lucas_dev_br', '@vanessa_alves'] },
+            { rede: 'Facebook', icon: 'fa-facebook-f', color: '#1877f2', usernames: ['@marcos.silva.oficial', '@alberto_sampaio_br'] },
+            { rede: 'YouTube', icon: 'fa-youtube', color: '#ff0000', usernames: ['@CanalOficial_SP', '@VlogDeHoje'] },
+            { rede: 'TikTok', icon: 'fa-tiktok', color: '#00f2fe', usernames: ['@alvo_digital_oficial', '@vlog_da_semana', '@clips_sp_32'] },
+            { rede: 'LinkedIn', icon: 'fa-linkedin-in', color: '#0077b5', usernames: ['@perfil_profissional_sp', '@eng_marcos_paulo'] },
+            { rede: 'Pinterest', icon: 'fa-pinterest-p', color: '#e60023', usernames: ['@inspira_design', '@board_sp'] }
+        ];
+
+        // Inicializa os 25 pontos brancos espalhados na área central do rosto
+        function inicializarPontosMesh() {
+            const container = document.getElementById('meshDotsContainer');
+            container.innerHTML = '';
+            for (let i = 0; i < 25; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'mesh-dot';
+                dot.id = 'mdot-' + i;
+                dot.style.top = (Math.floor(Math.random() * 50) + 22) + '%';
+                dot.style.left = (Math.floor(Math.random() * 50) + 22) + '%';
+                container.appendChild(dot);
+            }
+        }
+
+        function clicarProcurar() {
+            if (!finalCroppedImage) {
+                document.getElementById('imageInput').click();
+            } else {
+                iniciarEscaneamentoSimulado();
+            }
+        }
+
+        function abrirModalZoom(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const imageEl = document.getElementById('cropImage');
+                    imageEl.src = e.target.result;
+                    document.getElementById('modalCrop').style.display = 'flex';
+                    if (cropper) cropper.destroy();
+                    cropper = new Cropper(imageEl, { aspectRatio: 1, viewMode: 1, background: false, autoCropArea: 0.8 });
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function zoomImage(ratio) { if (cropper) cropper.zoom(ratio); }
+        function rotateImage(deg) { if (cropper) cropper.rotate(deg); }
+
+        function confirmarRecorte() {
+            if (cropper) {
+                const canvas = cropper.getCroppedCanvas({ width: 400, height: 400 });
+                finalCroppedImage = canvas.toDataURL('image/jpeg');
+
+                const thumb = document.getElementById('thumbPreview');
+                thumb.src = finalCroppedImage;
+                thumb.style.display = 'block';
+                document.getElementById('uploadPlaceholder').style.display = 'none';
+
+                fecharModalCrop();
+                iniciarEscaneamentoSimulado();
+            }
+        }
+
+        function fecharModalCrop() { document.getElementById('modalCrop').style.display = 'none'; }
+
+        function animarDestaqueIcones() {
+            const icons = Array.from(document.querySelectorAll('.icon-item'));
+            icons.forEach(i => i.classList.remove('active-scan'));
+            const randIndex1 = Math.floor(Math.random() * icons.length);
+            icons[randIndex1].classList.add('active-scan');
+        }
+
+        function moverPontosBiometricos() {
+            const containerSize = 135; 
+            const dotElements = [];
+
+            for (let i = 0; i < 25; i++) {
+                const dot = document.getElementById('mdot-' + i);
+                if (dot) {
+                    const randomTop = Math.floor(Math.random() * 56) + 20; 
+                    const randomLeft = Math.floor(Math.random() * 56) + 20;
+                    dot.style.top = randomTop + '%';
+                    dot.style.left = randomLeft + '%';
+
+                    dotElements.push({
+                        x: (randomLeft / 100) * containerSize,
+                        y: (randomTop / 100) * containerSize
+                    });
+                }
+            }
+
+            for (let l = 0; l < 8; l++) {
+                const lineEl = document.getElementById('l' + l);
+                if (lineEl && dotElements.length > 0) {
+                    const p1 = dotElements[Math.floor(Math.random() * dotElements.length)];
+                    const p2 = dotElements[Math.floor(Math.random() * dotElements.length)];
+                    lineEl.setAttribute('x1', p1.x);
+                    lineEl.setAttribute('y1', p1.y);
+                    lineEl.setAttribute('x2', p2.x);
+                    lineEl.setAttribute('y2', p2.y);
+                }
+            }
+        }
+
+        // FASE 1: Simulação
+        function iniciarEscaneamentoSimulado() {
+            const scanBtn = document.getElementById('scanBtn');
+            scanBtn.style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('scanLoader').style.display = 'flex';
+
+            const orbit = document.getElementById('orbitRing');
+            const uploadCenter = document.getElementById('uploadBtn');
+            const scannerLaser = document.getElementById('scannerLaser');
+            const faceMeshOverlay = document.getElementById('faceMeshOverlay');
+
+            orbit.classList.add('scanning');
+            uploadCenter.classList.add('pulse-scan');
+            scannerLaser.style.display = 'block';         
+            faceMeshOverlay.style.display = 'block';      
+
+            inicializarPontosMesh();
+            moverPontosBiometricos();
+
+            scanHighlightInterval = setInterval(animarDestaqueIcones, 500);
+            meshMoveInterval = setInterval(moverPontosBiometricos, 1200);
+
+            let fill = document.getElementById('progressFill');
+            let loaderText = document.getElementById('loaderText');
+            let width = 0;
+
+            const tempoTotalSegundos = Math.floor(Math.random() * (30 - 15 + 1)) + 15; 
+            const tempoTotalMs = tempoTotalSegundos * 1000;
+            const intervaloTick = 100;
+            const incrementoPorTick = (100 / (tempoTotalMs / intervaloTick));
+
+            let interval = setInterval(() => {
+                if (width >= 100) {
+                    clearInterval(interval);
+                    clearInterval(scanHighlightInterval);
+                    clearInterval(meshMoveInterval);
+
+                    orbit.classList.remove('scanning');
+                    uploadCenter.classList.remove('pulse-scan');
+                    scannerLaser.style.display = 'none';     
+                    faceMeshOverlay.style.display = 'none';  
+                    document.querySelectorAll('.icon-item').forEach(i => i.classList.remove('active-scan'));
+
+                    document.getElementById('heroSection').style.display = 'none';
+
+                    exibirResultadosFalsosBorrados();
+                } else {
+                    width += incrementoPorTick;
+                    if (width > 100) width = 100;
+                    fill.style.width = width + '%';
+                    loaderText.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> MAPEANDO PONTOS BIOMÉTRICOS (${Math.floor(width)}%)...`;
+                }
+            }, intervaloTick); 
+        }
+
+        function exibirResultadosFalsosBorrados() {
+            document.getElementById('scanLoader').style.display = 'none';
+
+            const container = document.getElementById('resultsListContainer');
+            container.innerHTML = '';
+            document.getElementById('resultsCountHeader').innerHTML = `<i class="fa-solid fa-circle-check"></i> 4 CORRESPONDÊNCIAS DE ALTA PRECISÃO ENCONTRADAS!`;
+            document.getElementById('resultsSection').style.display = 'block';
+            document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+
+            const redesEmbaralhadas = [...perfisDatabaseFalsos].sort(() => 0.5 - Math.random());
+
+            for (let i = 0; i < 4; i++) {
+                const redeData = redesEmbaralhadas[i % redesEmbaralhadas.length];
+                const username = redeData.usernames[Math.floor(Math.random() * redeData.usernames.length)];
+                const precisao = (Math.random() * (99.1 - 89.5) + 89.5).toFixed(1);
+
+                const cardHtml = `
+                    <div class="result-card" id="card-falso-${i}">
+                        <div style="position: relative;">
+                            <img class="result-avatar card-avatar blur-target" src="${finalCroppedImage}" alt="Perfil">
+                            <div class="social-badge-overlay">
+                                <i class="fa-brands ${redeData.icon}" style="color: ${redeData.color};"></i>
+                            </div>
+                        </div>
+                        <div class="result-info">
+                            <div class="social-tag-title" style="color: ${redeData.color};">
+                                <i class="fa-brands ${redeData.icon}"></i> ${redeData.rede}
+                            </div>
+                            <h4 class="card-username blur-target">${username}</h4>
+                            <p>Correspondência Biométrica: <strong>${precisao}%</strong></p>
+                        </div>
+                        <button class="btn-card-unlock" onclick="clicarDesbloquearResultado(${i})">
+                            <i class="fa-solid fa-lock"></i> Ver Resultado
+                        </button>
+                    </div>
+                `;
+                container.innerHTML += cardHtml;
+            }
+        }
+
+        function clicarDesbloquearResultado(cardIndex) {
+            if (saldoCreditos > 0) {
+                saldoCreditos -= 1;
+                atualizarInterfaceSaldo();
+                executarBuscaRealFaceCheck();
+            } else {
+                abrirModalPlanos();
+            }
+        }
+
+        async function executarBuscaRealFaceCheck() {
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('scanLoader').style.display = 'flex';
+            document.getElementById('loaderText').innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> CONSULTANDO API REAL FACECHECK.ID...`;
+
+            try {
+                const blob = dataURItoBlob(finalCroppedImage);
+                const formData = new FormData();
+                formData.append('imagem', blob, 'rosto.jpg');
+                formData.append('payment_id', 'pix_aprovado_sessao');
+
+                const response = await fetch('http://localhost:3000/api/escanear-rosto', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                document.getElementById('scanLoader').style.display = 'none';
+
+                if (data.sucesso && data.perfis_encontrados && data.perfis_encontrados.length > 0) {
+                    renderizarResultadosReaisAPI(data.perfis_encontrados);
+                } else {
+                    alert('Busca realizada com sucesso na API real, mas nenhum perfil público correspondente foi retornado.');
+                    document.getElementById('resultsSection').style.display = 'block';
+                }
+
+                if (data.buscas_restantes !== undefined) {
+                    saldoCreditos = data.buscas_restantes;
+                    atualizarInterfaceSaldo();
+                }
+
+            } catch (err) {
+                console.error('Erro na API real:', err);
+                document.getElementById('scanLoader').style.display = 'none';
+                alert('Erro ao comunicar com a API de biometria real.');
+                document.getElementById('resultsSection').style.display = 'block';
+            }
+        }
+
+        function dataURItoBlob(dataURI) {
+            const byteString = atob(dataURI.split(',')[1]);
+            const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+            }
+            return new Blob([ab], { type: mimeString });
+        }
+
+        function renderizarResultadosReaisAPI(itens) {
+            const container = document.getElementById('resultsListContainer');
+            container.innerHTML = '';
+            document.getElementById('resultsCountHeader').innerHTML = `<i class="fa-solid fa-circle-check"></i> ${itens.length} PERFIS REAIS ENCONTRADOS VIA API!`;
+            document.getElementById('resultsSection').style.display = 'block';
+            document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+
+            itens.forEach((item, i) => {
+                const precisao = item.score ? (item.score * 100).toFixed(1) : '98.5';
+                const urlPerfil = item.url || '#';
+                const tituloPerfil = item.title || 'Perfil Web Verificado';
+                const previewImg = item.image || finalCroppedImage;
+
+                const cardHtml = `
+                    <div class="result-card">
+                        <div style="position: relative;">
+                            <img class="result-avatar card-avatar" src="${previewImg}" alt="Perfil Real">
+                            <div class="social-badge-overlay">
+                                <i class="fa-solid fa-globe" style="color: var(--gold);"></i>
+                            </div>
+                        </div>
+                        <div class="result-info">
+                            <div class="social-tag-title" style="color: var(--gold);">
+                                <i class="fa-solid fa-link"></i> FaceCheck API
+                            </div>
+                            <h4 class="card-username">${tituloPerfil}</h4>
+                            <p>Correspondência Biométrica: <strong>${precisao}%</strong></p>
+                        </div>
+                        <a href="${urlPerfil}" target="_blank" class="btn-card-unlock" style="background: #10b981; color: #fff; text-decoration: none;">
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i> Acessar Perfil
+                        </a>
+                    </div>
+                `;
+                container.innerHTML += cardHtml;
+            });
+        }
+
+        function atualizarInterfaceSaldo() {
+            document.getElementById('userCreditsCount').innerText = saldoCreditos;
+            document.getElementById('creditsBadge').style.display = 'flex';
+        }
+
+        function abrirModalPlanos() {
+            document.body.classList.add('modal-open');
+            document.getElementById('modalPlanos').style.display = 'flex';
+        }
+
+        function fecharModalPlanos() {
+            document.body.classList.remove('modal-open');
+            document.getElementById('modalPlanos').style.display = 'none';
+        }
+
+        function selecionarPlano(nomePacote, valor, qtdCreditos) {
+            creditosCompradosNestaSessao = qtdCreditos;
+            document.getElementById('modalPlanos').style.display = 'none';
+            abrirModalPix(nomePacote, valor, qtdCreditos);
+        }
+
+        async function abrirModalPix(nomePacote, valor, qtdCreditos) {
+            document.body.classList.add('modal-open');
+            document.getElementById('modalPix').style.display = 'flex';
+            document.getElementById('pixModalTag').innerText = nomePacote.toUpperCase();
+            document.getElementById('pixModalValor').innerText = `R$ ${valor.toFixed(2).replace('.', ',')}`;
+            document.getElementById('pixModalDescricao').innerText = `Dá direito a ${qtdCreditos} créditos de pesquisa. Pague via PIX.`;
+            
+            document.getElementById('qrCodeBox').innerHTML = '<p style="font-size: 0.75rem; color: #555; text-align:center;"><i class="fa-solid fa-spinner fa-spin"></i> Gerando PIX no Mercado Pago...</p>';
+
+            startPixTimer(600); // Inicia temporizador de 10 min (600s)
+
+            try {
+                const response = await fetch('http://localhost:3000/api/criar-pix', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        valor: valor,
+                        plano: nomePacote,
+                        email: 'cliente@radarfacial.com'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.qr_code_base64) {
+                    document.getElementById('qrCodeBox').innerHTML = `<img src="data:image/jpeg;base64,${data.qr_code_base64}" alt="QR Code PIX Real">`;
+                    pixCopiaCola = data.qr_code;
+                } else {
+                    document.getElementById('qrCodeBox').innerHTML = '<p style="font-size: 0.7rem; color: red; text-align:center;">Erro ao gerar QR Code. Verifique o servidor Node.js.</p>';
+                }
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('qrCodeBox').innerHTML = '<p style="font-size: 0.7rem; color: red; text-align:center;">Erro de conexão com o servidor local (porta 3000).</p>';
+            }
+        }
+
+        function startPixTimer(duration) {
+            if (timerInterval) clearInterval(timerInterval);
+            let timer = duration, minutes, seconds;
+            const display = document.getElementById('pixTimer');
+            timerInterval = setInterval(() => {
+                minutes = parseInt(timer / 60, 10);
+                seconds = parseInt(timer % 60, 10);
+
+                minutes = minutes < 10 ? "0" + minutes : minutes;
+                seconds = seconds < 10 ? "0" + seconds : seconds;
+
+                display.textContent = minutes + ":" + seconds;
+
+                if (--timer < 0) {
+                    clearInterval(timerInterval);
+                    display.textContent = "EXPIRADO";
+                }
+            }, 1000);
+        }
+
+        function voltarParaPlanos() {
+            if (timerInterval) clearInterval(timerInterval);
+            document.getElementById('modalPix').style.display = 'none';
+            document.getElementById('modalPlanos').style.display = 'flex';
+        }
+
+        function copiarPix() {
+            if (pixCopiaCola) {
+                navigator.clipboard.writeText(pixCopiaCola);
+                alert('Código PIX Copia e Cola copiado com sucesso!');
+            } else {
+                alert('Aguarde o QR Code real ser carregado.');
+            }
+        }
+
+        // Sistema de Prova Social Automática
+        const cidades = ["São Paulo", "Rio de Janeiro", "Belo Horizonte", "Curitiba", "Brasília", "Salvador", "Fortaleza", "Porto Alegre"];
+        function showSocialProof() {
+            const toast = document.getElementById('socialProofToast');
+            const userText = document.getElementById('proofUser');
+            const cidade = cidades[Math.floor(Math.random() * cidades.length)];
+            
+            userText.innerText = `Usuário em ${cidade}`;
+            toast.classList.add('show');
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 4500);
+        }
+
+        setTimeout(showSocialProof, 4000);
+        setInterval(showSocialProof, 16000);
+    </script>
+</body>
+</html>
