@@ -740,6 +740,52 @@
             box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
         }
 
+        /* Identidade visual automática das redes nos resultados.
+           ALTERAÇÃO SOMENTE VISUAL: não interfere em login, PIX ou créditos. */
+        .result-card-square.social-result-card {
+            --social-color: var(--gold);
+            --social-color-2: var(--gold);
+            --social-soft: rgba(245, 158, 11, 0.12);
+            border-color: color-mix(in srgb, var(--social-color) 42%, transparent);
+        }
+
+        .result-card-square.social-result-card.featured {
+            border-color: var(--social-color) !important;
+        }
+
+        .social-result-card .social-gradient-bar {
+            background: linear-gradient(180deg, var(--social-color), var(--social-color-2)) !important;
+            box-shadow: 0 0 18px color-mix(in srgb, var(--social-color) 45%, transparent);
+        }
+
+        .social-result-card .network-label-row {
+            color: var(--social-color) !important;
+        }
+
+        .social-network-icon {
+            width: 27px;
+            height: 27px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            color: #fff;
+            background: linear-gradient(135deg, var(--social-color), var(--social-color-2));
+            box-shadow: 0 4px 12px color-mix(in srgb, var(--social-color) 28%, transparent);
+            font-size: 0.86rem;
+        }
+
+        .social-result-card .btn-unlock-square.social-access-btn {
+            background: linear-gradient(135deg, var(--social-color), var(--social-color-2)) !important;
+            color: #fff !important;
+            box-shadow: 0 4px 15px color-mix(in srgb, var(--social-color) 32%, transparent) !important;
+        }
+
+        .social-result-card .btn-unlock-square.social-access-btn:hover {
+            box-shadow: 0 7px 22px color-mix(in srgb, var(--social-color) 48%, transparent) !important;
+        }
+
         .plans-grid {
             display: flex;
             flex-direction: column;
@@ -1702,14 +1748,129 @@
             }
         }
 
+        function detectarRedeSocial(url, item = {}) {
+            const bruto = [
+                url,
+                item.site,
+                item.domain,
+                item.source,
+                item.title
+            ].filter(Boolean).join(' ').toLowerCase();
+
+            const redes = [
+                {
+                    chaves: ['instagram.com', 'instagram'],
+                    nome: 'Instagram',
+                    icone: 'fa-brands fa-instagram',
+                    cor: '#e1306c',
+                    cor2: '#833ab4'
+                },
+                {
+                    chaves: ['facebook.com', 'fb.com', 'facebook'],
+                    nome: 'Facebook',
+                    icone: 'fa-brands fa-facebook-f',
+                    cor: '#1877f2',
+                    cor2: '#0d5bd7'
+                },
+                {
+                    chaves: ['youtube.com', 'youtu.be', 'youtube'],
+                    nome: 'YouTube',
+                    icone: 'fa-brands fa-youtube',
+                    cor: '#ff0000',
+                    cor2: '#cc0000'
+                },
+                {
+                    chaves: ['tiktok.com', 'tiktok'],
+                    nome: 'TikTok',
+                    icone: 'fa-brands fa-tiktok',
+                    cor: '#25f4ee',
+                    cor2: '#fe2c55'
+                },
+                {
+                    chaves: ['x.com', 'twitter.com', 'twitter'],
+                    nome: 'X / Twitter',
+                    icone: 'fa-brands fa-x-twitter',
+                    cor: '#ffffff',
+                    cor2: '#6b7280'
+                },
+                {
+                    chaves: ['linkedin.com', 'linkedin'],
+                    nome: 'LinkedIn',
+                    icone: 'fa-brands fa-linkedin-in',
+                    cor: '#0a66c2',
+                    cor2: '#004182'
+                },
+                {
+                    chaves: ['pinterest.com', 'pinterest'],
+                    nome: 'Pinterest',
+                    icone: 'fa-brands fa-pinterest-p',
+                    cor: '#e60023',
+                    cor2: '#bd081c'
+                },
+                {
+                    chaves: ['telegram.me', 't.me', 'telegram'],
+                    nome: 'Telegram',
+                    icone: 'fa-brands fa-telegram',
+                    cor: '#229ed9',
+                    cor2: '#168acd'
+                },
+                {
+                    chaves: ['reddit.com', 'reddit'],
+                    nome: 'Reddit',
+                    icone: 'fa-brands fa-reddit-alien',
+                    cor: '#ff4500',
+                    cor2: '#d93a00'
+                },
+                {
+                    chaves: ['vk.com', 'vkontakte'],
+                    nome: 'VK',
+                    icone: 'fa-brands fa-vk',
+                    cor: '#0077ff',
+                    cor2: '#005fcc'
+                }
+            ];
+
+            for (const rede of redes) {
+                if (rede.chaves.some(chave => bruto.includes(chave))) {
+                    return rede;
+                }
+            }
+
+            let dominio = '';
+            try {
+                dominio = new URL(url, window.location.origin).hostname.replace(/^www\./, '');
+            } catch (e) {}
+
+            return {
+                nome: dominio || 'Site / Web',
+                icone: 'fa-solid fa-globe',
+                cor: '#10b981',
+                cor2: '#059669'
+            };
+        }
+
+        function escaparHtml(valor) {
+            return String(valor ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function escaparAtributoJS(valor) {
+            return String(valor ?? '')
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'");
+        }
+
         function renderizarResultadosReaisAPI(itens) {
             const imgOriginalEnviada = capturarImagemFinalCirculo();
             const container = document.getElementById('resultsGridContainer');
             container.innerHTML = '';
             document.getElementById('resultsSection').style.display = 'block';
 
-            // Garante que 'itens' é tratado como um array válido
-            const perfis = Array.isArray(itens) ? itens : (itens.items || []);
+            const perfis = Array.isArray(itens) ? itens : (itens?.items || []);
 
             if (perfis.length === 0) {
                 container.innerHTML = `
@@ -1738,6 +1899,8 @@
                     }
                 } catch (e) {}
 
+                const rede = detectarRedeSocial(urlPerfil, item);
+
                 const tituloPerfil =
                     item.title ||
                     item.site ||
@@ -1751,23 +1914,33 @@
                     item.image_url ||
                     item.base64 ||
                     imgOriginalEnviada;
+
                 const isFeatured = index === 0;
+                const nomeRedeSeguro = escaparHtml(rede.nome);
+                const tituloSeguro = escaparHtml(tituloPerfil);
+                const previewSeguro = escaparHtml(previewImg);
+                const urlJsSeguro = escaparAtributoJS(urlPerfil);
 
                 const cardHtml = `
-                    <div class="result-card-square ${isFeatured ? 'featured' : ''}" style="${isFeatured ? 'border-color: var(--gold);' : ''}">
-                        <div class="social-gradient-bar" style="background: var(--gold);"></div>
+                    <div class="result-card-square social-result-card ${isFeatured ? 'featured' : ''}"
+                         style="--social-color:${rede.cor}; --social-color-2:${rede.cor2};">
+                        <div class="social-gradient-bar"></div>
                         <div class="avatar-match-wrapper">
                             <span class="match-badge-tag">${precisao === "--" ? "Match" : precisao + "%"}</span>
-                            <img class="result-avatar-img" src="${previewImg}" alt="Perfil">
+                            <img class="result-avatar-img" src="${previewSeguro}" alt="Perfil">
                         </div>
                         <div class="result-text-details">
-                            <div class="network-label-row" style="color: var(--gold);">
-                                <i class="fa-solid fa-globe"></i> Match Biométrico Encontrado
+                            <div class="network-label-row">
+                                <span class="social-network-icon">
+                                    <i class="${rede.icone}"></i>
+                                </span>
+                                ${nomeRedeSeguro}
                             </div>
-                            <div class="username-blur-text">${tituloPerfil}</div>
+                            <div class="username-blur-text">${tituloSeguro}</div>
                         </div>
-                        <button onclick="window.open('${urlPerfil}', '_blank')" class="btn-unlock-square" style="background: #10b981; color: #fff;">
-                            <i class="fa-solid fa-external-link"></i> ACESSAR REDE SOCIAL
+                        <button onclick="window.open('${urlJsSeguro}', '_blank', 'noopener,noreferrer')"
+                                class="btn-unlock-square social-access-btn">
+                            <i class="${rede.icone}"></i> ACESSAR ${nomeRedeSeguro.toUpperCase()}
                         </button>
                     </div>
                 `;
