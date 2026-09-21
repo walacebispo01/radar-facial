@@ -648,13 +648,6 @@
             border: 2px solid rgba(255,255,255,0.15);
         }
 
-        .blur-target {
-            filter: blur(12px);
-            user-select: none;
-            pointer-events: none;
-            transition: filter 0.5s ease;
-        }
-
         .result-text-details {
             display: flex;
             flex-direction: column;
@@ -1138,7 +1131,6 @@
                 <i class="fa-solid fa-copy"></i> Copiar Código PIX
             </button>
 
-            <!-- BOTÃO SEGURO QUE LIBERA DIRETO SEM DAR ERRO -->
             <button class="btn-modal btn-check-pix" onclick="verificarPagamentoPix()">
                 <i class="fa-solid fa-rotate"></i> Já paguei / Verificar Saldo
             </button>
@@ -1171,17 +1163,7 @@
         let currentScale = 1;
         let initialPinchDistance = null;
 
-        const perfisDatabaseFalsos = [
-            { rede: 'Instagram', icon: 'fa-instagram', color: '#fd1d1d', gradient: 'linear-gradient(to bottom, #833ab4, #fd1d1d, #fcb045)', usernames: ['@marcelo_sp92', '@carol.vlog', '@lucas_dev_br', '@vanessa_alves'] },
-            { rede: 'Telegram', icon: 'fa-telegram', color: '#229ed9', gradient: 'linear-gradient(to bottom, #0088cc, #229ed9)', usernames: ['@marcos_silva_oficial', '@alberto_sampaio_br'] },
-            { rede: 'YouTube', icon: 'fa-youtube', color: '#ff0000', gradient: 'linear-gradient(to bottom, #ff0000, #cc0000)', usernames: ['@CanalOficial_SP', '@VlogDeHoje'] },
-            { rede: 'TikTok', icon: 'fa-tiktok', color: '#00f2fe', gradient: 'linear-gradient(to bottom, #25f4ee, #fe2f55)', usernames: ['@alvo_digital_oficial', '@vlog_da_semana', '@clips_sp_32'] },
-            { rede: 'LinkedIn', icon: 'fa-linkedin-in', color: '#0077b5', gradient: 'linear-gradient(to bottom, #0077b5, #004182)', usernames: ['@perfil_profissional_sp', '@eng_marcos_paulo'] },
-            { rede: 'Pinterest', icon: 'fa-pinterest-p', color: '#e60023', gradient: 'linear-gradient(to bottom, #e60023, #ad081b)', usernames: ['@inspira_design', '@board_sp'] }
-        ];
-
         window.addEventListener('DOMContentLoaded', () => {
-            // Bypass automático para ambiente local (localhost)
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
                 usuarioEmail = 'walacegab1998@gmail.com';
                 localStorage.setItem('radar_user_email', usuarioEmail);
@@ -1578,6 +1560,7 @@
                     document.body.classList.remove('focus-mode');
                     document.getElementById('heroSection').style.display = 'none';
 
+                    // Dispara a busca real na API do FaceCheck configurada no servidor
                     executarBuscaRealFaceCheck();
                 } else {
                     width += incrementoPorTick;
@@ -1590,28 +1573,19 @@
             }, intervaloTick); 
         }
 
-        function clicarDesbloquearResultado(cardIndex) {
-            if (!usuarioEmail) {
-                abrirModalLogin();
-                return;
-            }
-
-            if (saldoCreditos > 0) {
-                saldoCreditos -= 1;
-                atualizarInterfaceSaldo();
-                executarBuscaRealFaceCheck();
-            } else {
-                abrirModalPlanos();
-            }
-        }
-
         async function executarBuscaRealFaceCheck() {
             document.getElementById('resultsSection').style.display = 'none';
             document.getElementById('scanLoader').style.display = 'flex';
-            document.getElementById('loaderText').innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> CONSULTANDO API FACECHECK...`;
+            document.getElementById('loaderText').innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> CONSULTANDO API FACECHECK REAL...`;
 
             try {
                 const imgFinal = capturarImagemFinalCirculo();
+                if (!imgFinal) {
+                    alert('Por favor, selecione uma foto válida.');
+                    voltarParaInicio(new Event('click'));
+                    return;
+                }
+
                 const blob = dataURItoBlob(imgFinal);
                 const formData = new FormData();
                 formData.append('imagem', blob, 'rosto.jpg');
@@ -1628,8 +1602,8 @@
                 if (data.sucesso && data.perfis_encontrados && data.perfis_encontrados.length > 0) {
                     renderizarResultadosReaisAPI(data.perfis_encontrados);
                 } else {
-                    alert('Busca realizada com sucesso, mas nenhum perfil público correspondente foi retornado.');
-                    document.getElementById('resultsSection').style.display = 'block';
+                    alert('Varredura concluída, mas nenhum perfil público correspondente foi retornado pela API.');
+                    document.getElementById('heroSection').style.display = 'block';
                 }
 
                 if (data.buscas_restantes !== undefined) {
@@ -1640,8 +1614,8 @@
             } catch (err) {
                 console.error('Erro na API real:', err);
                 document.getElementById('scanLoader').style.display = 'none';
-                alert('Erro ao comunicar com a API de biometria.');
-                document.getElementById('resultsSection').style.display = 'block';
+                alert('Erro ao comunicar com o servidor ou com a API de biometria.');
+                document.getElementById('heroSection').style.display = 'block';
             }
         }
 
@@ -1678,7 +1652,7 @@
                         </div>
                         <div class="result-text-details">
                             <div class="network-label-row" style="color: #34d399;">
-                                <i class="fa-solid fa-globe"></i> FaceCheck API
+                                <i class="fa-solid fa-globe"></i> FaceCheck API Real
                             </div>
                             <div class="username-blur-text">${tituloPerfil}</div>
                         </div>
