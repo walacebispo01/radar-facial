@@ -111,6 +111,27 @@ app.post('/api/verificar-pix', async (req, res) => {
     }
 });
 
+// NOVA ROTA: Desconta o crédito no backend quando o usuário clica para desbloquear o perfil na Fase 2
+app.post('/api/descontar-credito', (req, res) => {
+    try {
+        const { email } = req.body;
+        const userKey = email || 'walacegab1998@gmail.com';
+
+        if (usuariosCreditos[userKey] === undefined) {
+            usuariosCreditos[userKey] = 10;
+        }
+
+        if (usuariosCreditos[userKey] > 0) {
+            usuariosCreditos[userKey] -= 1;
+            return res.json({ success: true, creditos: usuariosCreditos[userKey] });
+        } else {
+            return res.status(403).json({ success: false, error: 'Créditos esgotados.' });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Erro ao descontar crédito.' });
+    }
+});
+
 app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
     try {
         const { email } = req.body;
@@ -120,16 +141,9 @@ app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
             usuariosCreditos[userKey] = 10;
         }
 
-        if (usuariosCreditos[userKey] <= 0) {
-            return res.status(403).json({ error: 'Créditos esgotados. Efetue o pagamento de um novo pacote.' });
-        }
-
         if (!req.file) {
             return res.status(400).json({ error: 'Nenhuma imagem enviada.' });
         }
-
-        // DESCONTA O CRÉDITO IMEDIATAMENTE AO EXECUTAR A BUSCA
-        usuariosCreditos[userKey] -= 1;
 
         const formDataUpload = new FormData();
         formDataUpload.append('images', req.file.buffer, { 
