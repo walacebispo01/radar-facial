@@ -290,9 +290,7 @@
             transform: translate(-50%, -50%);
             cursor: grab;
             user-select: none;
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
+            max-width: none;
         }
         
         .interactive-preview-container img:active {
@@ -873,7 +871,7 @@
 
                 <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="carregarFotoDireta(event)">
 
-                <div class="upload-center" id="uploadBtn" onclick="document.getElementById('imageInput').click()">
+                <div class="upload-center" id="uploadBtn" onclick="dispararSeletorArquivo(event)">
                     <div class="scanner-laser" id="scannerLaser"></div>
                     
                     <div class="face-mesh-overlay" id="faceMeshOverlay">
@@ -900,7 +898,7 @@
                     </div>
                 </div>
 
-                <div class="zoom-hint" id="zoomHint">Arraste para mover • Role o mouse para Zoom</div>
+                <div class="zoom-hint" id="zoomHint">Posicione o rosto • Role o mouse para Zoom</div>
             </div>
 
             <button class="scan-action-btn" id="scanBtn" onclick="clicarProcurar()">
@@ -1094,6 +1092,12 @@
             }
         }
 
+        // Função isolada e segura para disparar o explorador apenas por clique explícito
+        function dispararSeletorArquivo(event) {
+            event.stopPropagation();
+            document.getElementById('imageInput').click();
+        }
+
         function carregarFotoDireta(event) {
             const file = event.target.files[0];
             if (file) {
@@ -1103,7 +1107,15 @@
                     thumb.src = e.target.result;
                     
                     thumb.onload = () => {
-                        currentScale = 1; 
+                        const containerSize = 220; // Tamanho do círculo expandido
+                        const imgW = thumb.naturalWidth;
+                        const imgH = thumb.naturalHeight;
+                        
+                        // Cálculo automático para que a foto inteira caiba perfeitamente no círculo (fit)
+                        const scaleX = containerSize / imgW;
+                        const scaleY = containerSize / imgH;
+                        currentScale = Math.max(scaleX, scaleY); // Garante cobertura total sem cortes drásticos
+
                         imgX = 0;
                         imgY = 0;
                         atualizarTransformacaoImagem();
@@ -1151,7 +1163,7 @@
                 } else {
                     currentScale -= zoomIntensity;
                 }
-                if (currentScale < 0.2) currentScale = 0.2;
+                if (currentScale < 0.1) currentScale = 0.1;
                 if (currentScale > 5) currentScale = 5;
                 atualizarTransformacaoImagem();
             }, { passive: false });
@@ -1183,7 +1195,7 @@
                     );
                     const factor = currentDistance / initialPinchDistance;
                     currentScale *= factor;
-                    if (currentScale < 0.2) currentScale = 0.2;
+                    if (currentScale < 0.1) currentScale = 0.1;
                     if (currentScale > 5) currentScale = 5;
                     initialPinchDistance = currentDistance;
                     atualizarTransformacaoImagem();
