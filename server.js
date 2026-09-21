@@ -147,6 +147,8 @@ app.post('/api/criar-pix', async (req, res) => {
         };
         salvarDadosPersistidos();
 
+        console.log(`[PIX CRIADO] ID: ${result.id} | Email: ${email} | Créditos: ${qtdCreditos}`);
+
         res.json({
             success: true,
             transaction_id: result.id,
@@ -170,12 +172,17 @@ app.post('/api/verificar-pix', async (req, res) => {
                 const currentStatus = mpCheck.status;
                 transacoes[transaction_id].status = currentStatus;
 
+                console.log(`[VERIFICAR PIX] Transação ID: ${transaction_id} | Status MP: ${currentStatus} | Credited: ${transacoes[transaction_id].credited}`);
+
                 if (currentStatus === 'approved' && !transacoes[transaction_id].credited) {
                     transacoes[transaction_id].credited = true;
                     const qtdAdicionar = transacoes[transaction_id].buscas_restantes || 0;
                     const targetEmail = transacoes[transaction_id].email || email;
                     if (targetEmail) {
-                        usuariosCreditos[targetEmail] = (usuariosCreditos[targetEmail] || 0) + qtdAdicionar;
+                        const antes = usuariosCreditos[targetEmail] || 0;
+                        console.log(`[CRÉDITO ADICIONADO - VERIFICAR PIX] Antes: ${antes} | Adicionando: ${qtdAdicionar}`);
+                        usuariosCreditos[targetEmail] = antes + qtdAdicionar;
+                        console.log(`[CRÉDITO ADICIONADO - VERIFICAR PIX] Depois: ${usuariosCreditos[targetEmail]}`);
                     }
                     aprovado = true;
                     salvarDadosPersistidos();
@@ -219,6 +226,8 @@ app.post('/api/mercadopago-webhook', async (req, res) => {
         const mpCheck = await payment.get({ id: paymentId });
         const currentStatus = mpCheck.status;
 
+        console.log(`[WEBHOOK] Payment ID: ${paymentId} | Status: ${currentStatus}`);
+
         if (transacoes[paymentId]) {
             transacoes[paymentId].status = currentStatus;
             if (currentStatus === 'approved' && !transacoes[paymentId].credited) {
@@ -226,7 +235,10 @@ app.post('/api/mercadopago-webhook', async (req, res) => {
                 const qtdAdicionar = transacoes[paymentId].buscas_restantes || 0;
                 const targetEmail = transacoes[paymentId].email;
                 if (targetEmail) {
-                    usuariosCreditos[targetEmail] = (usuariosCreditos[targetEmail] || 0) + qtdAdicionar;
+                    const antes = usuariosCreditos[targetEmail] || 0;
+                    console.log(`[CRÉDITO ADICIONADO - WEBHOOK] Antes: ${antes} | Adicionando: ${qtdAdicionar}`);
+                    usuariosCreditos[targetEmail] = antes + qtdAdicionar;
+                    console.log(`[CRÉDITO ADICIONADO - WEBHOOK] Depois: ${usuariosCreditos[targetEmail]}`);
                     salvarDadosPersistidos();
                 }
             }
@@ -236,7 +248,7 @@ app.post('/api/mercadopago-webhook', async (req, res) => {
                 const externalRef = mpCheck.external_reference;
                 const qtdAdicionar = Number(mpCheck.metadata?.creditos || externalRef || 1);
                 if (payerEmail) {
-                    if (!transacoes[paymentId]) {
+                    if (!transacoes[paymentId] || !transacoes[paymentId].credited) {
                         transacoes[paymentId] = {
                             status: 'approved',
                             email: payerEmail,
@@ -244,7 +256,10 @@ app.post('/api/mercadopago-webhook', async (req, res) => {
                             criado_em: new Date(),
                             credited: true
                         };
-                        usuariosCreditos[payerEmail] = (usuariosCreditos[payerEmail] || 0) + qtdAdicionar;
+                        const antes = usuariosCreditos[payerEmail] || 0;
+                        console.log(`[CRÉDITO ADICIONADO - WEBHOOK NOVO] Antes: ${antes} | Adicionando: ${qtdAdicionar}`);
+                        usuariosCreditos[payerEmail] = antes + qtdAdicionar;
+                        console.log(`[CRÉDITO ADICIONADO - WEBHOOK NOVO] Depois: ${usuariosCreditos[payerEmail]}`);
                         salvarDadosPersistidos();
                     }
                 }
@@ -263,14 +278,18 @@ app.post('/api/descontar-credito', async (req, res) => {
         }
 
         const saldoAtual = usuariosCreditos[email] || 0;
+        console.log(`[CRÉDITO ANTES - DESCONTAR] Usuário: ${email} | Saldo: ${saldoAtual}`);
+        
         if (saldoAtual > 0) {
             usuariosCreditos[email] = saldoAtual - 1;
             salvarDadosPersistidos();
+            console.log(`[CRÉDITO DEPOIS - DESCONTAR] Usuário: ${email} | Saldo: ${usuariosCreditos[email]}`);
             return res.json({ success: true, creditos: usuariosCreditos[email] });
         } else {
             return res.status(403).json({ success: false, error: 'Créditos esgotados.' });
         }
     } catch (error) {
+        console.error('Erro ao descontar crédito:', error.message);
         res.status(500).json({ success: false, error: 'Erro ao descontar crédito.' });
     }
 });
@@ -285,19 +304,23 @@ app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
             return res.status(400).json({ sucesso: false, error: 'E-mail do usuário não informado.' });
         }
 
-        const saldoAtual = usuariosCreditos[userKey] || 0;
-        if (saldoAtual < 1) {
+        const saldoAntes = usuariosCreditos[userKey] || 0;
+        console.log(`[CRÉDITO ANTES - ESCANEAR] Usuário: ${userKey} | Saldo: ${saldoAntes}`);
+
+        if (saldoAntes < 1) {
             return res.status(403).json({ sucesso: false, error: 'Créditos do Radar Facial insuficientes.' });
         }
 
-        usuariosCreditos[userKey] = saldoAtual - 1;
+        usuariosCreditos[userKey] = saldoAntes - 1;
         creditosConsumidos = true;
         salvarDadosPersistidos();
+        console.log(`[CRÉDITO DEPOIS - ESCANEAR] Usuário: ${userKey} | Saldo: ${usuariosCreditos[userKey]}`);
 
         if (!req.file) {
             if (creditosConsumidos) {
                 usuariosCreditos[userKey] = (usuariosCreditos[userKey] || 0) + 1;
                 salvarDadosPersistidos();
+                console.log(`[CRÉDITO ESTORNADO - SEM IMAGEM] Saldo restaurado para: ${usuariosCreditos[userKey]}`);
             }
             return res.status(400).json({ sucesso: false, error: 'Nenhuma imagem enviada.' });
         }
@@ -384,6 +407,7 @@ app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
         if (creditosConsumidos && userKey) {
             usuariosCreditos[userKey] = (usuariosCreditos[userKey] || 0) + 1;
             salvarDadosPersistidos();
+            console.log(`[CRÉDITO ESTORNADO - ERRO API] Saldo restaurado para: ${usuariosCreditos[userKey]}`);
         }
         console.error('Erro detalhado FaceCheck:', error.response?.data || error.message);
         res.status(500).json({

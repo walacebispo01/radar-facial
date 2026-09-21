@@ -1173,8 +1173,8 @@
     <div class="social-proof-toast" id="socialProofToast">
         <i class="fa-solid fa-bolt"></i>
         <div class="social-proof-text">
-            <strong id="proofUser">Usuário em São Paulo</strong>
-            <span>Acabou de adquirir o Pacote Investigador (10 buscas).</span>
+            <strong id="proofUser">Sistema Ativo</strong>
+            <span>Varredura biométrica segura e criptografada.</span>
         </div>
     </div>
 
@@ -1473,12 +1473,6 @@
                 return;
             }
 
-            if (saldoCreditos < 1) {
-                alert('Você não possui créditos suficientes para realizar a pesquisa. Adquira um pacote.');
-                abrirModalPlanos();
-                return;
-            }
-
             document.getElementById('zoomHint').style.display = 'none';
             iniciarEscaneamentoSimulado();
         }
@@ -1545,8 +1539,9 @@
 
                     document.body.classList.remove('focus-mode');
                     document.getElementById('heroSection').style.display = 'none';
+                    document.getElementById('scanLoader').style.display = 'none';
 
-                    executarBuscaRealFaceCheck();
+                    exibirPreviaBloqueada();
                 } else {
                     width += incrementoPorTick;
                     if (width > 100) width = 100;
@@ -1558,14 +1553,79 @@
             }, intervaloTick); 
         }
 
-        async function executarBuscaRealFaceCheck() {
-            document.getElementById('resultsSection').style.display = 'none';
-            document.getElementById('scanLoader').style.display = 'flex';
-            document.getElementById('loaderText').innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> CONSULTANDO BIOMETRIA NA API...`;
+        function exibirPreviaBloqueada() {
+            const imgOriginalEnviada = capturarImagemFinalCirculo();
+            if (!imgOriginalEnviada) {
+                alert('Imagem inválida. Por favor, carregue uma foto novamente.');
+                voltarParaInicio();
+                return;
+            }
+
+            const container = document.getElementById('resultsGridContainer');
+            container.innerHTML = '';
+            document.getElementById('resultsSection').style.display = 'block';
+
+            const cardHtml = `
+                <div class="result-card-square featured locked" style="border-color: var(--gold);">
+                    <div class="social-gradient-bar" style="background: var(--gold);"></div>
+                    <div class="avatar-match-wrapper">
+                        <span class="match-badge-tag">98.5%</span>
+                        <img class="result-avatar-img" src="${imgOriginalEnviada}" alt="Perfil">
+                        <div class="lock-badge-overlay"><i class="fa-solid fa-lock"></i> Bloqueado</div>
+                    </div>
+                    <div class="result-text-details">
+                        <div class="network-label-row" style="color: var(--gold);">
+                            <i class="fa-solid fa-globe"></i> Match Biométrico Encontrado
+                        </div>
+                        <div class="username-blur-text">Perfil Público Identificado</div>
+                    </div>
+                    <button onclick="desbloquearResultadosReais(this)" class="btn-unlock-square" id="btnDesbloquearPrevia">
+                        <i class="fa-solid fa-unlock-keyhole"></i> DESBLOQUEAR RESULTADOS
+                    </button>
+                </div>
+            `;
+            container.innerHTML += cardHtml;
+            document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function desbloquearResultadosReais(botaoElemento) {
+            if (!usuarioEmail) {
+                abrirModalLogin();
+                return;
+            }
+
+            if (saldoCreditos < 1) {
+                abrirModalPlanos();
+                return;
+            }
+
+            botaoElemento.disabled = true;
+            botaoElemento.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> DESBLOQUEANDO...';
 
             try {
+                const resDesconto = await fetch('/api/descontar-credito', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: usuarioEmail })
+                });
+
+                const dataDesconto = await resDesconto.json();
+
+                if (!resDesconto.ok || !dataDesconto.success) {
+                    botaoElemento.disabled = false;
+                    botaoElemento.innerHTML = '<i class="fa-solid fa-unlock-keyhole"></i> DESBLOQUEAR RESULTADOS';
+                    alert(dataDesconto.error || 'Créditos insuficientes ou erro ao descontar.');
+                    abrirModalPlanos();
+                    return;
+                }
+
+                if (dataDesconto.creditos !== undefined) {
+                    saldoCreditos = dataDesconto.creditos;
+                    atualizarInterfaceSaldo();
+                }
+
                 const imgFinal = capturarImagemFinalCirculo();
-                const blob = dataURItoBlob(imgFinal || 'data:image/jpeg;base64,/9j/4AAQSkZJRg...');
+                const blob = dataURItoBlob(imgFinal);
                 const formData = new FormData();
                 formData.append('imagem', blob, 'rosto.jpg');
                 formData.append('email', usuarioEmail);
@@ -1576,7 +1636,6 @@
                 });
 
                 const data = await response.json();
-                document.getElementById('scanLoader').style.display = 'none';
 
                 if (data.buscas_restantes !== undefined) {
                     saldoCreditos = data.buscas_restantes;
@@ -1584,30 +1643,23 @@
                 }
 
                 if (!response.ok) {
-                    alert(data.error || 'Erro ao realizar varredura.');
-                    voltarParaInicio();
+                    alert(data.error || 'Erro ao carregar dados da API.');
+                    botaoElemento.disabled = false;
+                    botaoElemento.innerHTML = '<i class="fa-solid fa-unlock-keyhole"></i> DESBLOQUEAR RESULTADOS';
                     return;
                 }
 
-                renderizarResultadosEmBlocos(data.perfis_encontrados || []);
+                renderizarResultadosReaisAPI(data.perfis_encontrados || []);
 
             } catch (err) {
                 console.error('Erro na requisição:', err);
-                document.getElementById('scanLoader').style.display = 'none';
-                renderizarResultadosEmBlocos([]);
+                botaoElemento.disabled = false;
+                botaoElemento.innerHTML = '<i class="fa-solid fa-unlock-keyhole"></i> DESBLOQUEAR RESULTADOS';
+                alert('Erro de conexão ao processar desbloqueio.');
             }
         }
 
-        function dataURItoBlob(dataURI) {
-            const byteString = atob(dataURI.split(',')[1]);
-            const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
-            const ab = new ArrayBuffer(byteString.length);
-            const ia = new Uint8Array(ab);
-            for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
-            return new Blob([ab], { type: mimeString });
-        }
-
-        function renderizarResultadosEmBlocos(itens) {
+        function renderizarResultadosReaisAPI(itens) {
             const imgOriginalEnviada = capturarImagemFinalCirculo();
             const container = document.getElementById('resultsGridContainer');
             container.innerHTML = '';
@@ -1618,7 +1670,7 @@
                     <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-dim);">
                         <i class="fa-solid fa-face-frown" style="font-size: 2.5rem; color: var(--gold); margin-bottom: 12px;"></i>
                         <p style="font-size: 1.1rem; font-weight: 700;">Nenhum perfil correspondente encontrado na base de dados.</p>
-                        <p style="font-size: 0.85rem;">Tente enviar uma foto com maior iluminação ou mais frontal.</p>
+                        <p style="font-size: 0.85rem;">A API não retornou correspondências para esta imagem.</p>
                     </div>
                 `;
                 return;
@@ -1653,6 +1705,15 @@
             });
 
             document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function dataURItoBlob(dataURI) {
+            const byteString = atob(dataURI.split(',')[1]);
+            const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+            return new Blob([ab], { type: mimeString });
         }
 
         function atualizarInterfaceSaldo() {
@@ -1768,15 +1829,9 @@
             }
         }
 
-        const cidades = ["São Paulo", "Rio de Janeiro", "Belo Horizonte", "Curitiba", "Brasília", "Salvador", "Fortaleza", "Porto Alegre"];
         function showSocialProof() {
             const toast = document.getElementById('socialProofToast');
-            const userText = document.getElementById('proofUser');
-            const cidade = cidades[Math.floor(Math.random() * cidades.length)];
-            
-            userText.innerText = `Usuário em proximidades de ${cidade}`;
             toast.classList.add('show');
-
             setTimeout(() => { toast.classList.remove('show'); }, 4500);
         }
 
