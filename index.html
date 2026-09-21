@@ -172,7 +172,6 @@
             color: #fff;
         }
 
-        /* Estilização para arredondar o botão nativo do Google */
         #googleLoginWrapper iframe {
             border-radius: 100px !important;
             overflow: hidden !important;
@@ -411,7 +410,7 @@
             transition: all 0.3s ease;
         }
 
-        .orbit-ring.scanning .icon-item {
+        .orbit-ring.scanning {
             animation: counter-spinScan 6s ease-in-out infinite !important;
         }
 
@@ -998,6 +997,7 @@
     <!-- Modal de Seleção de Pacotes -->
     <div class="modal" id="modalPlanos">
         <div class="modal-content-crop" style="max-width: 460px;">
+            <button class="modal-close-x" onclick="fecharModalPlanos()"><i class="fa-solid fa-xmark"></i></button>
             <h3 style="margin: 0; color: #fff; font-size: 1.3rem; font-weight: 800;">
                 Escolha seu Pacote de Pesquisas
             </h3>
@@ -1047,6 +1047,7 @@
     <!-- Modal do PIX -->
     <div class="modal" id="modalPix">
         <div class="modal-content-crop" style="max-width: 400px;">
+            <button class="modal-close-x" onclick="voltarParaPlanos()"><i class="fa-solid fa-xmark"></i></button>
             <div class="timer-box">
                 <i class="fa-solid fa-clock"></i> Oferta reservada por: <span id="pixTimer">09:59</span>
             </div>
@@ -1103,7 +1104,47 @@
                 ativarInterfaceLogada(usuarioEmail);
             }
             configurarInteracaoCirculo();
+            configurarTeclaEsc();
         });
+
+        function configurarTeclaEsc() {
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    // 1. Se houver algum modal aberto, fecha ele
+                    const modalLogin = document.getElementById('modalLoginObrigatorio');
+                    const modalPlanos = document.getElementById('modalPlanos');
+                    const modalPix = document.getElementById('modalPix');
+
+                    if (modalPix.style.display === 'flex') {
+                        voltarParaPlanos();
+                        return;
+                    }
+                    if (modalPlanos.style.display === 'flex') {
+                        fecharModalPlanos();
+                        return;
+                    }
+                    if (modalLogin.style.display === 'flex') {
+                        fecharModalLogin();
+                        return;
+                    }
+
+                    // 2. Se estiver na tela com a foto carregada (modo foco), cancela e volta à home normal
+                    if (document.body.classList.contains('focus-mode')) {
+                        cancelarModoFoco();
+                    }
+                }
+            });
+        }
+
+        function cancelarModoFoco() {
+            document.body.classList.remove('focus-mode');
+            document.getElementById('zoomHint').style.display = 'none';
+            document.getElementById('interactiveContainer').style.display = 'none';
+            document.getElementById('uploadPlaceholder').style.display = 'flex';
+            document.getElementById('draggableThumb.src') = '';
+            // Reseta o input file para permitir selecionar a mesma foto novamente se quiser
+            document.getElementById('imageInput').value = '';
+        }
 
         function renderizarBotaoGoogleModal() {
             const container = document.getElementById('googleLoginModalWrapper');
