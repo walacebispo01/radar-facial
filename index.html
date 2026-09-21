@@ -677,6 +677,37 @@
             letter-spacing: 0.5px;
         }
 
+        /* Estilo para cards bloqueados / borrados (Teaser) */
+        .result-card-square.locked .username-blur-text {
+            filter: blur(6px);
+            user-select: none;
+            transition: filter 0.3s ease;
+        }
+
+        .result-card-square.locked .result-avatar-img {
+            filter: blur(8px);
+            transform: scale(1.05);
+        }
+
+        .lock-badge-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid var(--gold);
+            color: var(--gold);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+            z-index: 10;
+        }
+
         .btn-unlock-square {
             background: var(--gold-gradient);
             color: #000;
@@ -1574,28 +1605,57 @@
                 const previewImg = item.image || imgFinal;
                 const isFeatured = index === 0;
 
+                // Lógica do Teaser / Blur: Se tiver créditos consome e libera, senão bloqueia e abre planos/Pix
+                const temCreditosSuficientes = saldoCreditos > 0;
+                const classeBloqueio = temCreditosSuficientes ? '' : 'locked';
+                const textoBotao = temCreditosSuficientes ? 'DESBLOQUEAR COM 1 CRÉDITO' : 'DESBLOQUEAR PERFIL (PIX)';
+                const acaoBotao = temCreditosSuficientes ? `consumirCreditoEDesbloquear('${urlPerfil}', this)` : `abrirModalPlanos()`;
+
                 const cardHtml = `
-                    <div class="result-card-square ${isFeatured ? 'featured' : ''}" style="${isFeatured ? 'border-color: #10b981;' : ''}">
-                        <div class="social-gradient-bar" style="background: #10b981;"></div>
+                    <div class="result-card-square ${isFeatured ? 'featured' : ''} ${classeBloqueio}" style="${isFeatured ? 'border-color: var(--gold);' : ''}">
+                        <div class="social-gradient-bar" style="background: var(--gold);"></div>
                         <div class="avatar-match-wrapper">
                             <span class="match-badge-tag">${precisao}%</span>
                             <img class="result-avatar-img" src="${previewImg}" alt="Perfil">
+                            ${!temCreditosSuficientes ? '<div class="lock-badge-overlay"><i class="fa-solid fa-lock"></i> Bloqueado</div>' : ''}
                         </div>
                         <div class="result-text-details">
-                            <div class="network-label-row" style="color: #34d399;">
-                                <i class="fa-solid fa-globe"></i> Match Biométrico
+                            <div class="network-label-row" style="color: var(--gold);">
+                                <i class="fa-solid fa-globe"></i> Match Biométrico Encontrado
                             </div>
                             <div class="username-blur-text">${tituloPerfil}</div>
                         </div>
-                        <a href="${urlPerfil}" target="_blank" class="btn-unlock-square" style="background: #10b981; color: #fff; text-decoration: none;">
-                            ACESSAR
-                        </a>
+                        <button onclick="${acaoBotao}" class="btn-unlock-square">
+                            <i class="fa-solid fa-unlock-keyhole"></i> ${textoBotao}
+                        </button>
                     </div>
                 `;
                 container.innerHTML += cardHtml;
             });
 
             document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function consumirCreditoEDesbloquear(urlOriginal, elementoBotao) {
+            if (saldoCreditos > 0) {
+                saldoCreditos -= 1;
+                atualizarInterfaceSaldo();
+                
+                const card = elementoBotao.closest('.result-card-square');
+                card.classList.remove('locked');
+                
+                const overlay = card.querySelector('.lock-badge-overlay');
+                if (overlay) overlay.remove();
+
+                elementoBotao.innerHTML = '<i class="fa-solid fa-external-link"></i> ACESSAR PERFIL REAL';
+                elementoBotao.style.background = '#10b981';
+                elementoBotao.style.color = '#fff';
+                elementoBotao.onclick = function() {
+                    window.open(urlOriginal, '_blank');
+                };
+            } else {
+                abrirModalPlanos();
+            }
         }
 
         function atualizarInterfaceSaldo() {
