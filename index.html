@@ -945,7 +945,7 @@
             
             <div class="header-right">
                 <div class="credits-badge" id="creditsBadge" onclick="abrirModalPlanos()">
-                    <i class="fa-solid fa-coins"></i> Saldo: <span id="userCreditsCount">100</span> pesquisas
+                    <i class="fa-solid fa-coins"></i> Saldo: <span id="userCreditsCount">0</span> pesquisas
                 </div>
                 
                 <div id="googleLoginWrapper">
@@ -1185,8 +1185,9 @@
         let idTransacaoAtual = null;
         let quantidadeCreditosComprando = 1;
 
-        let saldoCreditos = parseInt(localStorage.getItem('radar_user_credits') || '100');
-        let usuarioEmail = localStorage.getItem('radar_user_email') || 'walacegab1998@gmail.com';
+        let saldoCreditos = 0;
+        let usuarioEmail = null;
+        let googleCredentialToken = null;
 
         let isDragging = false;
         let startX, startY;
@@ -1194,9 +1195,6 @@
         let currentScale = 1;
 
         window.addEventListener('DOMContentLoaded', () => {
-            localStorage.setItem('radar_user_email', usuarioEmail);
-            ativarInterfaceLogada(usuarioEmail);
-            atualizarInterfaceSaldo();
             configurarInteracaoCirculo();
             configurarTeclaEsc();
         });
@@ -1255,26 +1253,26 @@
         }
 
         function handleGoogleLogin(response) {
-            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                usuarioEmail = 'walacegab1998@gmail.com';
-            } else {
-                try {
-                    const base64Url = response.credential.split('.')[1];
-                    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-                    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-                        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-                    }).join(''));
-                    const payload = JSON.parse(jsonPayload);
-                    usuarioEmail = payload.email;
-                } catch(e) {
-                    usuarioEmail = 'walacegab1998@gmail.com';
-                }
+            googleCredentialToken = response.credential;
+            try {
+                const base64Url = response.credential.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                const payload = JSON.parse(jsonPayload);
+                usuarioEmail = payload.email;
+            } catch(e) {
+                usuarioEmail = null;
             }
 
-            localStorage.setItem('radar_user_email', usuarioEmail);
-            ativarInterfaceLogada(usuarioEmail);
-            sincronizarUsuarioBackend(usuarioEmail);
-            fecharModalLogin();
+            if (usuarioEmail) {
+                ativarInterfaceLogada(usuarioEmail);
+                sincronizarUsuarioBackend(usuarioEmail, googleCredentialToken);
+                fecharModalLogin();
+            } else {
+                alert('Erro ao identificar e-mail do login Google.');
+            }
         }
 
         function ativarInterfaceLogada(email) {
@@ -1284,12 +1282,12 @@
             document.getElementById('creditsBadge').style.display = 'flex';
         }
 
-        async function sincronizarUsuarioBackend(email) {
+        async function sincronizarUsuarioBackend(email, credential) {
             try {
                 const res = await fetch('/api/login-google', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email })
+                    body: JSON.stringify({ email: email, credential: credential })
                 });
                 const data = await res.json();
                 if (data.success && data.creditos !== undefined) {
@@ -1303,6 +1301,10 @@
             if (event) {
                 event.stopPropagation();
                 event.preventDefault();
+            }
+            if (!usuarioEmail) {
+                abrirModalLogin();
+                return;
             }
             const fileInput = document.getElementById('imageInput');
             fileInput.value = '';
@@ -1461,9 +1463,19 @@
         }
 
         function clicarProcurar() {
+            if (!usuarioEmail) {
+                abrirModalLogin();
+                return;
+            }
             const thumb = document.getElementById('draggableThumb');
             if (!thumb.src || thumb.src === window.location.href) {
                 document.getElementById('imageInput').click();
+                return;
+            }
+
+            if (saldoCreditos < 1) {
+                alert('Você não possui créditos suficientes para realizar a pesquisa. Adquira um pacote.');
+                abrirModalPlanos();
                 return;
             }
 
@@ -1571,6 +1583,12 @@
                     atualizarInterfaceSaldo();
                 }
 
+                if (!response.ok) {
+                    alert(data.error || 'Erro ao realizar varredura.');
+                    voltarParaInicio();
+                    return;
+                }
+
                 renderizarResultadosEmBlocos(data.perfis_encontrados || []);
 
             } catch (err) {
@@ -1607,27 +1625,18 @@
             }
 
             itens.forEach((item, index) => {
-                const precisao = item.score ? (item.score * 100).toFixed(1) : '98.5';
-                const urlPerfil = item.url || 'https://instagram.com';
+                const precisao = item.score ? (item.score * 100).toFixed(1) : '';
+                const urlPerfil = item.url || '';
                 const tituloPerfil = item.title || 'Perfil Público Detectado';
                 const previewImg = item.image || imgOriginalEnviada;
                 const isFeatured = index === 0;
 
-                const temCreditos = saldoCreditos > 0;
-                const classeBloqueio = 'locked'; 
-                const textoBotao = temCreditos ? 'DESBLOQUEAR COM 1 CRÉDITO' : 'DESBLOQUEAR PERFIL (PIX)';
-                
-                const acaoBotao = temCreditos 
-                    ? `consumirCreditoEDesbloquear('${urlPerfil}', this)` 
-                    : `abrirModalPlanos()`;
-
                 const cardHtml = `
-                    <div class="result-card-square ${isFeatured ? 'featured' : ''} ${classeBloqueio}" style="${isFeatured ? 'border-color: var(--gold);' : ''}">
+                    <div class="result-card-square ${isFeatured ? 'featured' : ''}" style="${isFeatured ? 'border-color: var(--gold);' : ''}">
                         <div class="social-gradient-bar" style="background: var(--gold);"></div>
                         <div class="avatar-match-wrapper">
-                            <span class="match-badge-tag">${precisao}%</span>
+                            ${precisao ? `<span class="match-badge-tag">${precisao}%</span>` : ''}
                             <img class="result-avatar-img" src="${previewImg}" alt="Perfil">
-                            <div class="lock-badge-overlay"><i class="fa-solid fa-lock"></i> Bloqueado</div>
                         </div>
                         <div class="result-text-details">
                             <div class="network-label-row" style="color: var(--gold);">
@@ -1635,8 +1644,8 @@
                             </div>
                             <div class="username-blur-text">${tituloPerfil}</div>
                         </div>
-                        <button onclick="${acaoBotao}" class="btn-unlock-square">
-                            <i class="fa-solid fa-unlock-keyhole"></i> ${textoBotao}
+                        <button onclick="window.open('${urlPerfil}', '_blank')" class="btn-unlock-square" style="background: #10b981; color: #fff;">
+                            <i class="fa-solid fa-external-link"></i> ACESSAR REDE SOCIAL
                         </button>
                     </div>
                 `;
@@ -1646,50 +1655,16 @@
             document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
         }
 
-        async function consumirCreditoEDesbloquear(urlOriginal, elementoBotao) {
-            if (saldoCreditos > 0) {
-                try {
-                    const res = await fetch('/api/descontar-credito', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: usuarioEmail })
-                    });
-                    const data = await res.json();
-                    if (data.success && data.creditos !== undefined) {
-                        saldoCreditos = data.creditos;
-                    } else {
-                        saldoCreditos -= 1;
-                    }
-                } catch (e) {
-                    saldoCreditos -= 1;
-                }
-
-                atualizarInterfaceSaldo(); 
-                
-                const card = elementoBotao.closest('.result-card-square');
-                card.classList.remove('locked'); 
-                
-                const overlay = card.querySelector('.lock-badge-overlay');
-                if (overlay) overlay.remove(); 
-
-                elementoBotao.innerHTML = '<i class="fa-solid fa-external-link"></i> ACESSAR REDE SOCIAL';
-                elementoBotao.style.background = '#10b981';
-                elementoBotao.style.color = '#fff';
-                elementoBotao.onclick = function() {
-                    window.open(urlOriginal, '_blank');
-                };
-            } else {
-                abrirModalPlanos();
-            }
-        }
-
         function atualizarInterfaceSaldo() {
             document.getElementById('userCreditsCount').innerText = saldoCreditos;
-            localStorage.setItem('radar_user_credits', saldoCreditos);
             document.getElementById('creditsBadge').style.display = 'flex';
         }
 
         function abrirModalPlanos() {
+            if (!usuarioEmail) {
+                abrirModalLogin();
+                return;
+            }
             document.body.classList.add('modal-open');
             document.getElementById('modalPlanos').style.display = 'flex';
         }
@@ -1720,7 +1695,7 @@
                 const response = await fetch('/api/criar-pix', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ valor: valor, plano: nomePacote, email: usuarioEmail, creditos: qtdCreditos })
+                    body: JSON.stringify({ valor: valor, plano: nomePacote, email: usuarioEmail, creditos: qtdCreditos, idempotencyKey: 'pix-' + Date.now() + '-' + Math.random() })
                 });
 
                 const data = await response.json();
@@ -1737,7 +1712,6 @@
             }
         }
 
-        // CORREÇÃO CRUCIAL AQUI: Validação real do PIX no backend antes de somar créditos
         async function verificarPagamentoPix() {
             try {
                 const response = await fetch('/api/verificar-pix', {
@@ -1748,17 +1722,17 @@
 
                 const data = await response.json();
                 
-                if (data.pago || data.success) {
-                    saldoCreditos = data.creditos !== undefined ? data.creditos : (saldoCreditos + quantidadeCreditosComprando);
+                if (data.pago === true) {
+                    saldoCreditos = data.creditos !== undefined ? data.creditos : saldoCreditos;
                     atualizarInterfaceSaldo();
                     document.getElementById('modalPix').style.display = 'none';
                     document.body.classList.remove('modal-open');
                     alert('Pagamento confirmado! Seus créditos foram adicionados com sucesso.');
                 } else {
-                    alert('Pagamento ainda não confirmado. Conclua o PIX no seu aplicativo bancário e clique novamente.');
+                    alert('Pagamento ainda não confirmado ou pendente. Conclua o PIX no seu aplicativo bancário e clique novamente.');
                 }
             } catch (e) {
-                alert('Ainda aguardando compensação do PIX pelo gateway. Tente novamente em alguns segundos.');
+                alert('Erro ao verificar compensação do PIX. Tente novamente em alguns segundos.');
             }
         }
 
