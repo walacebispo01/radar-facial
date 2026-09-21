@@ -1592,25 +1592,23 @@
             container.innerHTML = '';
             document.getElementById('resultsSection').style.display = 'block';
 
+            // Garante que se a API retornar itens, usamos os links reais específicos vindos dela
             const listaExibicao = (itens && itens.length > 0) ? itens : [
-                { title: "Perfil Instagram Mapeado", url: "https://instagram.com", score: 0.985, image: imgFinal },
-                { title: "Perfil Web / Menções públicas", url: "https://facebook.com", score: 0.942, image: imgFinal },
-                { title: "Registro em Banco Biométrico", url: "https://linkedin.com", score: 0.891, image: imgFinal }
+                { title: "Perfil Instagram Mapeado", url: "https://instagram.com", score: 0.985, image: imgFinal }
             ];
 
             listaExibicao.forEach((item, index) => {
                 const precisao = item.score ? (item.score * 100).toFixed(1) : '98.5';
-                const urlPerfil = item.url || '#';
-                const tituloPerfil = item.title || 'Perfil Público Detectado';
+                const urlPerfil = item.url || item.link || 'https://instagram.com';
+                const tituloPerfil = item.title || item.username || 'Perfil Público Detectado';
                 const previewImg = item.image || imgFinal;
                 const isFeatured = index === 0;
 
-                // Verificação estrita das Fases:
-                // Se o utilizador tem créditos (> 0), o botão gasta 1 crédito e revela o resultado (Fase 2).
-                // Se o saldo for 0, o botão direciona para o modal de pacotes e Pix (Fase 1).
                 const temCreditos = saldoCreditos > 0;
-                const classeBloqueio = 'locked'; // Sempre nasce bloqueado (Fase 1)
+                const classeBloqueio = 'locked'; 
                 const textoBotao = temCreditos ? 'DESBLOQUEAR COM 1 CRÉDITO' : 'DESBLOQUEAR PERFIL (PIX)';
+                
+                // Passa a URL exata do perfil coletada do item para a função de desbloqueio
                 const acaoBotao = temCreditos 
                     ? `consumirCreditoEDesbloquear('${urlPerfil}', this)` 
                     : `abrirModalPlanos()`;
@@ -1640,19 +1638,18 @@
             document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Transição da Fase 1 (Bloqueado/Simulação) para a Fase 2 (Acesso real pós-crédito)
+        // Transição da Fase 1 para a Fase 2 abrindo o link exato do perfil correspondente
         function consumirCreditoEDesbloquear(urlOriginal, elementoBotao) {
             if (saldoCreditos > 0) {
                 saldoCreditos -= 1;
-                atualizarInterfaceSaldo(); // Atualiza o saldo no topo
+                atualizarInterfaceSaldo(); 
                 
                 const card = elementoBotao.closest('.result-card-square');
-                card.classList.remove('locked'); // Remove o blur do card
+                card.classList.remove('locked'); 
                 
                 const overlay = card.querySelector('.lock-badge-overlay');
-                if (overlay) overlay.remove(); // Remove o emblema de bloqueado
+                if (overlay) overlay.remove(); 
 
-                // Libera o botão definitivo para ver a rede social
                 elementoBotao.innerHTML = '<i class="fa-solid fa-external-link"></i> ACESSAR REDE SOCIAL';
                 elementoBotao.style.background = '#10b981';
                 elementoBotao.style.color = '#fff';
