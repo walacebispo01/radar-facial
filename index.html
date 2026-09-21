@@ -45,6 +45,28 @@
             user-select: none;
         }
 
+        /* Classe para embaçar todo o fundo quando a foto estiver ativa no círculo */
+        body.focus-mode .main-content-wrapper > *:not(.hero) {
+            filter: blur(8px);
+            opacity: 0.4;
+            pointer-events: none;
+            transition: all 0.4s ease;
+        }
+
+        body.focus-mode header {
+            filter: blur(8px);
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        body.focus-mode .orbit-container {
+            filter: none !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            transform: scale(1.05);
+            transition: transform 0.4s ease;
+        }
+
         .main-content-wrapper {
             width: 100%;
             display: flex;
@@ -62,6 +84,7 @@
             align-items: center;
             border-bottom: 1px solid rgba(255, 255, 255, 0.08);
             backdrop-filter: blur(12px);
+            transition: all 0.4s ease;
         }
 
         .logo {
@@ -192,6 +215,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            transition: all 0.4s ease;
         }
 
         .orbit-ring {
@@ -234,7 +258,6 @@
             animation: radarPulse 1.2s ease-in-out infinite alternate;
         }
 
-        /* Correção perfeita do container e centralização da imagem dentro do círculo */
         .interactive-preview-container {
             position: absolute;
             top: 0; left: 0;
@@ -254,49 +277,29 @@
             cursor: grab;
             user-select: none;
             max-width: none;
-            min-width: 100%;
-            min-height: 100%;
-            object-fit: cover;
         }
         
         .interactive-preview-container img:active {
             cursor: grabbing;
         }
 
-        .circle-zoom-controls {
+        /* Instrução flutuante sutil de ajuda para o zoom/arraste */
+        .zoom-hint {
             position: absolute;
-            bottom: -45px;
+            bottom: -36px;
             left: 50%;
             transform: translateX(-50%);
-            display: none;
-            gap: 10px;
-            z-index: 25;
             background: rgba(15, 23, 42, 0.95);
-            padding: 6px 16px;
-            border-radius: 20px;
-            border: 1px solid rgba(245, 158, 11, 0.4);
-            backdrop-filter: blur(8px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-        }
-
-        .circle-zoom-controls button {
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(245, 158, 11, 0.2);
+            border: 1px solid rgba(245, 158, 11, 0.3);
             color: var(--gold);
-            font-size: 0.9rem;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-        }
-
-        .circle-zoom-controls button:hover {
-            background: var(--gold);
-            color: #000;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.72rem;
+            white-space: nowrap;
+            pointer-events: none;
+            display: none;
+            z-index: 25;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
         }
 
         .scanner-laser {
@@ -878,10 +881,8 @@
                     </div>
                 </div>
 
-                <div class="circle-zoom-controls" id="circleZoomControls">
-                    <button onclick="event.stopPropagation(); zoomCircleImg(0.1)" title="Aumentar Zoom"><i class="fa-solid fa-plus"></i></button>
-                    <button onclick="event.stopPropagation(); zoomCircleImg(-0.1)" title="Diminuir Zoom"><i class="fa-solid fa-minus"></i></button>
-                </div>
+                <!-- Dica de ajuda dinâmica para zoom e arraste -->
+                <div class="zoom-hint" id="zoomHint">Arraste para mover • Ctrl + Roda para Zoom</div>
             </div>
 
             <button class="scan-action-btn" id="scanBtn" onclick="clicarProcurar()">
@@ -1018,6 +1019,7 @@
         let startX, startY;
         let imgX = 0, imgY = 0;
         let currentScale = 1;
+        let initialPinchDistance = null;
 
         const perfisDatabaseFalsos = [
             { rede: 'Instagram', icon: 'fa-instagram', color: '#e1306c', usernames: ['@marcelo_sp92', '@carol.vlog', '@lucas_dev_br', '@vanessa_alves'] },
@@ -1032,7 +1034,7 @@
             if (usuarioEmail) {
                 ativarInterfaceLogada(usuarioEmail);
             }
-            configurarArrasteCirculo();
+            configurarInteracaoCirculo();
         });
 
         function handleGoogleLogin(response) {
@@ -1083,23 +1085,27 @@
                     thumb.src = e.target.result;
                     
                     thumb.onload = () => {
-                        currentScale = 1;
+                        currentScale = 1; // Começa num tamanho adequado e não gigante
                         imgX = 0;
                         imgY = 0;
                         atualizarTransformacaoImagem();
                         
                         document.getElementById('interactiveContainer').style.display = 'block';
-                        document.getElementById('circleZoomControls').style.display = 'flex';
+                        document.getElementById('zoomHint').style.display = 'block';
                         document.getElementById('uploadPlaceholder').style.display = 'none';
+
+                        // Ativa o modo de foco (embaça o fundo)
+                        document.body.classList.add('focus-mode');
                     };
                 }
                 reader.readAsDataURL(file);
             }
         }
 
-        function configurarArrasteCirculo() {
+        function configurarInteracaoCirculo() {
             const container = document.getElementById('interactiveContainer');
 
+            // Arraste com o Mouse
             container.addEventListener('mousedown', (e) => {
                 isDragging = true;
                 startX = e.clientX - imgX;
@@ -1118,36 +1124,69 @@
                 isDragging = false;
             });
 
+            // Zoom com Ctrl + Roda do Mouse (PC)
+            container.addEventListener('wheel', (e) => {
+                if (e.ctrlKey) {
+                    e.preventDefault();
+                    const zoomIntensity = 0.15;
+                    if (e.deltaY < 0) {
+                        currentScale += zoomIntensity;
+                    } else {
+                        currentScale -= zoomIntensity;
+                    }
+                    if (currentScale < 0.3) currentScale = 0.3;
+                    if (currentScale > 5) currentScale = 5;
+                    atualizarTransformacaoImagem();
+                }
+            }, { passive: false });
+
+            // Toque e Pinça com dois dedos (Mobile)
             container.addEventListener('touchstart', (e) => {
-                if(e.touches.length === 1) {
+                if (e.touches.length === 1) {
                     isDragging = true;
                     startX = e.touches[0].clientX - imgX;
                     startY = e.touches[0].clientY - imgY;
+                } else if (e.touches.length === 2) {
+                    isDragging = false;
+                    initialPinchDistance = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
                 }
             }, { passive: true });
 
             window.addEventListener('touchmove', (e) => {
-                if (!isDragging || e.touches.length !== 1) return;
-                imgX = e.touches[0].clientX - startX;
-                imgY = e.touches[0].clientY - startY;
-                atualizarTransformacaoImagem();
+                if (isDragging && e.touches.length === 1) {
+                    imgX = e.touches[0].clientX - startX;
+                    imgY = e.touches[0].clientY - startY;
+                    atualizarTransformacaoImagem();
+                } else if (e.touches.length === 2 && initialPinchDistance) {
+                    const currentDistance = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    const factor = currentDistance / initialPinchDistance;
+                    currentScale *= factor;
+                    if (currentScale < 0.3) currentScale = 0.3;
+                    if (currentScale > 5) currentScale = 5;
+                    initialPinchDistance = currentDistance;
+                    atualizarTransformacaoImagem();
+                }
             }, { passive: true });
 
-            window.addEventListener('touchend', () => {
-                isDragging = false;
+            window.addEventListener('touchend', (e) => {
+                if (e.touches.length < 2) {
+                    initialPinchDistance = null;
+                }
+                if (e.touches.length === 0) {
+                    isDragging = false;
+                }
             });
         }
 
         function atualizarTransformacaoImagem() {
             const thumb = document.getElementById('draggableThumb');
             thumb.style.transform = `translate(calc(-50% + ${imgX}px), calc(-50% + ${imgY}px)) scale(${currentScale})`;
-        }
-
-        function zoomCircleImg(delta) {
-            currentScale += delta;
-            if (currentScale < 0.3) currentScale = 0.3;
-            if (currentScale > 5) currentScale = 5;
-            atualizarTransformacaoImagem();
         }
 
         function capturarImagemFinalCirculo() {
@@ -1205,16 +1244,14 @@
                 return;
             }
 
-            // SEGURANÇA DE CRÉDITOS: Se não estiver logado, guia suavemente para o topo onde está o login do Google sem alertas chatos
             if (!usuarioEmail) {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-                // Tenta disparar o clique no botão do Google automaticamente se disponível
-                const googleBtn = document.querySelector('.g_id_signin iframe');
-                if(googleBtn) {
-                    googleBtn.focus();
-                }
                 return;
             }
+
+            // Remove o foco embaçado ao iniciar a busca
+            document.body.classList.remove('focus-mode');
+            document.getElementById('zoomHint').style.display = 'none';
 
             iniciarEscaneamentoSimulado();
         }
@@ -1263,7 +1300,6 @@
             scanBtn.style.display = 'none';
             document.getElementById('resultsSection').style.display = 'none';
             document.getElementById('scanLoader').style.display = 'flex';
-            document.getElementById('circleZoomControls').style.display = 'none';
 
             const orbit = document.getElementById('orbitRing');
             const uploadCenter = document.getElementById('uploadBtn');
