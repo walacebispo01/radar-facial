@@ -1186,7 +1186,7 @@
         let idTransacaoAtual = null;
         let quantidadeCreditosComprando = 1;
 
-        let saldoCreditos = parseInt(localStorage.getItem('radar_user_credits') || '10');
+        let saldoCreditos = parseInt(localStorage.getItem('radar_user_credits') || '100');
         let usuarioEmail = localStorage.getItem('radar_user_email') || 'walacegab1998@gmail.com';
 
         let isDragging = false;
@@ -1587,20 +1587,20 @@
         }
 
         function renderizarResultadosEmBlocos(itens) {
-            const imgFinal = capturarImagemFinalCirculo();
+            const imgOriginalEnviada = capturarImagemFinalCirculo();
             const container = document.getElementById('resultsGridContainer');
             container.innerHTML = '';
             document.getElementById('resultsSection').style.display = 'block';
 
             const listaExibicao = (itens && itens.length > 0) ? itens : [
-                { title: "Perfil Instagram Mapeado", url: "https://instagram.com", score: 0.985, image: imgFinal }
+                { title: "Perfil Instagram Mapeado", url: "https://instagram.com", score: 0.985, image: imgOriginalEnviada }
             ];
 
             listaExibicao.forEach((item, index) => {
                 const precisao = item.score ? (item.score * 100).toFixed(1) : '98.5';
-                const urlPerfil = item.url || item.link || item.profileUrl || 'https://instagram.com';
-                const tituloPerfil = item.title || item.username || 'Perfil Público Detectado';
-                const previewImg = item.image || imgFinal;
+                const urlPerfil = item.url || 'https://instagram.com';
+                const tituloPerfil = item.title || 'Perfil Público Detectado';
+                const previewImg = item.image || imgOriginalEnviada;
                 const isFeatured = index === 0;
 
                 const temCreditos = saldoCreditos > 0;
@@ -1636,10 +1636,8 @@
             document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Função corrigida: Consome o crédito localmente e sincroniza o desconto na API do backend
         async function consumirCreditoEDesbloquear(urlOriginal, elementoBotao) {
             if (saldoCreditos > 0) {
-                // Tenta descontar o crédito na API do servidor
                 try {
                     const res = await fetch('/api/descontar-credito', {
                         method: 'POST',
@@ -1650,7 +1648,7 @@
                     if (data.success && data.creditos !== undefined) {
                         saldoCreditos = data.creditos;
                     } else {
-                        saldoCreditos -= 1; // Fallback local se o server não retornar erro crítico
+                        saldoCreditos -= 1;
                     }
                 } catch (e) {
                     console.error("Erro ao abater crédito na API:", e);

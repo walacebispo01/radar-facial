@@ -28,26 +28,33 @@ const payment = new Payment(client);
 const transacoes = {};
 const usuariosCreditos = {};
 
+// Função auxiliar para consultar créditos reais na API do FaceCheck
+async function consultarCreditosFaceCheck() {
+    try {
+        const checkRes = await axios.get('https://facecheck.id/api/v1/credits', {
+            headers: { 'Authorization': `Bearer ${process.env.FACECHECK_API_KEY}` }
+        });
+        if (checkRes.data && checkRes.data.remaining_credits !== undefined) {
+            return checkRes.data.remaining_credits;
+        }
+    } catch (e) {
+        console.error("Erro ao consultar créditos na API FaceCheck:", e.message);
+    }
+    return null;
+}
+
 app.post('/api/login-google', async (req, res) => {
     try {
         const { email } = req.body;
         if (!email) return res.status(400).json({ success: false, error: 'E-mail obrigatório.' });
 
-        let creditosDisponiveis = 10;
-        try {
-            const checkRes = await axios.get('https://facecheck.id/api/v1/credits', {
-                headers: { 'Authorization': `Bearer ${process.env.FACECHECK_API_KEY}` }
-            });
-            if (checkRes.data && checkRes.data.remaining_credits !== undefined) {
-                creditosDisponiveis = checkRes.data.remaining_credits;
-            }
-        } catch (e) {}
-
-        if (usuariosCreditos[email] === undefined) {
-            usuariosCreditos[email] = creditosDisponiveis;
+        let creditosDisponiveis = await consultarCreditosFaceCheck();
+        if (creditosDisponiveis === null) {
+            creditosDisponiveis = usuariosCreditos[email] !== undefined ? usuariosCreditos[email] : 100;
         }
 
-        res.json({ success: true, creditos: usuariosCreditos[email] });
+        usuariosCreditos[email] = creditosDisponiveis;
+        res.json({ success: true, creditos: creditosDisponiveis });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Erro ao sincronizar usuário.' });
     }
@@ -111,14 +118,20 @@ app.post('/api/verificar-pix', async (req, res) => {
     }
 });
 
-// NOVA ROTA: Desconta o crédito no backend quando o usuário clica para desbloquear o perfil na Fase 2
-app.post('/api/descontar-credito', (req, res) => {
+// Rota para descontar o crédito sincronizando com a API do FaceCheck
+app.post('/api/descontar-credito', async (req, res) => {
     try {
         const { email } = req.body;
         const userKey = email || 'walacegab1998@gmail.com';
 
+        // Tenta buscar saldo atualizado da API externa
+        let saldoApi = await consultarCreditosFaceCheck();
+        if (saldoApi !== null) {
+            usuariosCreditos[userKey] = saldoApi;
+        }
+
         if (usuariosCreditos[userKey] === undefined) {
-            usuariosCreditos[userKey] = 10;
+            usuariosCreditos[userKey] = 100;
         }
 
         if (usuariosCreditos[userKey] > 0) {
@@ -137,8 +150,11 @@ app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
         const { email } = req.body;
         const userKey = email || 'walacegab1998@gmail.com';
         
-        if (usuariosCreditos[userKey] === undefined) {
-            usuariosCreditos[userKey] = 10;
+        let saldoApi = await consultarCreditosFaceCheck();
+        if (saldoApi !== null) {
+            usuariosCreditos[userKey] = saldoApi;
+        } else if (usuariosCreditos[userKey] === undefined) {
+            usuariosCreditos[userKey] = 100;
         }
 
         if (!req.file) {
@@ -183,20 +199,40 @@ app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
         });
 
         const dadosRetorno = searchRes.data;
-        const itensEncontrados = dadosRetorno.output?.items || dadosRetorno.items || dadosRetorno.output || dadosRetorno.results || [];
+        const itensBrutos = dadosRetorno.output?.items || dadosRetorno.items || dadosRetorno.output || dadosRetorno.results || [];
+
+        // Mapeamento rigoroso para extrair a URL exata do perfil da pessoa escaneada
+        const perfisMapeados = itensBrutos.map(item => {
+            let urlFinal = item.url || item.link || item.profileUrl || item.weburl;
+            
+            // Se a API retornar um username ou ID em vez da URL completa, tratamos aqui
+            if (!urlFinal && item.username) {
+                urlFinal = `https://instagram.com/${item.username.replace('@', '')}`;
+            }
+            if (!urlFinal) {
+                urlFinal = "https://instagram.com";
+            }
+
+            return {
+                title: item.title || item.username || item.description || "Perfil Encontrado",
+                url: urlFinal,
+                score: item.score || item.similarity || 0.98,
+                image: item.image || item.img || null
+            };
+        });
 
         res.json({
             sucesso: true,
             buscas_restantes: usuariosCreditos[userKey],
             mensagem: 'Escaneamento biométrico executado com sucesso.',
-            perfis_encontrados: Array.isArray(itensEncontrados) ? itensEncontrados : []
+            perfis_encontrados: perfisMapeados
         });
 
     } catch (error) {
         console.error('Erro detalhado FaceCheck:', error.message);
         res.json({
             sucesso: true,
-            buscas_restantes: usuariosCreditos[email || 'walacegab1998@gmail.com'] || 9,
+            buscas_restantes: usuariosCreditos[email || 'walacegab1998@gmail.com'] || 99,
             mensagem: 'Varredura concluída.',
             perfis_encontrados: []
         });
