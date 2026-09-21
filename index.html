@@ -677,7 +677,6 @@
             letter-spacing: 0.5px;
         }
 
-        /* Fase 1: Estilo para cards bloqueados / borrados */
         .result-card-square.locked .username-blur-text {
             filter: blur(6px);
             user-select: none;
@@ -946,7 +945,7 @@
             
             <div class="header-right">
                 <div class="credits-badge" id="creditsBadge" onclick="abrirModalPlanos()">
-                    <i class="fa-solid fa-coins"></i> Saldo: <span id="userCreditsCount">10</span> pesquisas
+                    <i class="fa-solid fa-coins"></i> Saldo: <span id="userCreditsCount">100</span> pesquisas
                 </div>
                 
                 <div id="googleLoginWrapper">
@@ -996,6 +995,7 @@
                     <div class="icon-item"><i class="fa-brands fa-facebook-f"></i></div>
                 </div>
 
+                <!-- Input blindado e corrigido contra loop infinito -->
                 <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="carregarFotoDireta(event)">
 
                 <div class="upload-center" id="uploadBtn" onclick="dispararSeletorArquivo(event)">
@@ -1145,7 +1145,7 @@
         </div>
     </div>
 
-    <!-- Modal do PIX COM VERIFICAÇÃO BLINDADA -->
+    <!-- Modal do PIX -->
     <div class="modal" id="modalPix">
         <div class="modal-content-crop" style="max-width: 400px;">
             <button class="modal-close-x" onclick="voltarParaPlanos()"><i class="fa-solid fa-xmark"></i></button>
@@ -1193,7 +1193,6 @@
         let startX, startY;
         let imgX = 0, imgY = 0;
         let currentScale = 1;
-        let initialPinchDistance = null;
 
         window.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('radar_user_email', usuarioEmail);
@@ -1301,40 +1300,46 @@
             } catch (e) { console.error("Erro ao sincronizar user:", e); }
         }
 
+        // CORREÇÃO DO LOOP DE UPLOAD: Limpa o input antes do click para evitar repetição infinita
         function dispararSeletorArquivo(event) {
-            event.stopPropagation();
-            document.getElementById('imageInput').click();
+            if (event) {
+                event.stopPropagation();
+                event.preventDefault();
+            }
+            const fileInput = document.getElementById('imageInput');
+            fileInput.value = '';
+            fileInput.click();
         }
 
         function carregarFotoDireta(event) {
             const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const thumb = document.getElementById('draggableThumb');
-                    thumb.src = e.target.result;
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const thumb = document.getElementById('draggableThumb');
+                thumb.src = e.target.result;
+                
+                thumb.onload = () => {
+                    const containerSize = 220; 
+                    const imgW = thumb.naturalWidth;
+                    const imgH = thumb.naturalHeight;
                     
-                    thumb.onload = () => {
-                        const containerSize = 220; 
-                        const imgW = thumb.naturalWidth;
-                        const imgH = thumb.naturalHeight;
-                        
-                        const scaleX = containerSize / imgW;
-                        const scaleY = containerSize / imgH;
-                        currentScale = Math.max(scaleX, scaleY);
+                    const scaleX = containerSize / imgW;
+                    const scaleY = containerSize / imgH;
+                    currentScale = Math.max(scaleX, scaleY);
 
-                        imgX = 0; imgY = 0;
-                        atualizarTransformacaoImagem();
-                        
-                        document.getElementById('interactiveContainer').style.display = 'block';
-                        document.getElementById('zoomHint').style.display = 'block';
-                        document.getElementById('uploadPlaceholder').style.display = 'none';
+                    imgX = 0; imgY = 0;
+                    atualizarTransformacaoImagem();
+                    
+                    document.getElementById('interactiveContainer').style.display = 'block';
+                    document.getElementById('zoomHint').style.display = 'block';
+                    document.getElementById('uploadPlaceholder').style.display = 'none';
 
-                        document.body.classList.add('focus-mode');
-                    };
-                }
-                reader.readAsDataURL(file);
+                    document.body.classList.add('focus-mode');
+                };
             }
+            reader.readAsDataURL(file);
         }
 
         function configurarInteracaoCirculo() {
@@ -1546,7 +1551,7 @@
         async function executarBuscaRealFaceCheck() {
             document.getElementById('resultsSection').style.display = 'none';
             document.getElementById('scanLoader').style.display = 'flex';
-            document.getElementById('loaderText').innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> CONSULTANDO BIOMETRIA...`;
+            document.getElementById('loaderText').innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> CONSULTANDO BIOMETRIA NA API...`;
 
             try {
                 const imgFinal = capturarImagemFinalCirculo();
@@ -1592,11 +1597,18 @@
             container.innerHTML = '';
             document.getElementById('resultsSection').style.display = 'block';
 
-            const listaExibicao = (itens && itens.length > 0) ? itens : [
-                { title: "Perfil Instagram Mapeado", url: "https://instagram.com", score: 0.985, image: imgOriginalEnviada }
-            ];
+            if (!itens || itens.length === 0) {
+                container.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-dim);">
+                        <i class="fa-solid fa-face-frown" style="font-size: 2.5rem; color: var(--gold); margin-bottom: 12px;"></i>
+                        <p style="font-size: 1.1rem; font-weight: 700;">Nenhum perfil correspondente encontrado na base de dados.</p>
+                        <p style="font-size: 0.85rem;">Tente enviar uma foto com maior iluminação ou mais frontal.</p>
+                    </div>
+                `;
+                return;
+            }
 
-            listaExibicao.forEach((item, index) => {
+            itens.forEach((item, index) => {
                 const precisao = item.score ? (item.score * 100).toFixed(1) : '98.5';
                 const urlPerfil = item.url || 'https://instagram.com';
                 const tituloPerfil = item.title || 'Perfil Público Detectado';
@@ -1651,7 +1663,6 @@
                         saldoCreditos -= 1;
                     }
                 } catch (e) {
-                    console.error("Erro ao abater crédito na API:", e);
                     saldoCreditos -= 1;
                 }
 

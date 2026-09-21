@@ -28,17 +28,16 @@ const payment = new Payment(client);
 const transacoes = {};
 const usuariosCreditos = {};
 
-// Função auxiliar para consultar créditos reais na API do FaceCheck
 async function consultarCreditosFaceCheck() {
     try {
         const checkRes = await axios.get('https://facecheck.id/api/v1/credits', {
-            headers: { 'Authorization': `Bearer ${process.env.FACECHECK_API_KEY}` }
+            headers: { 'Authorization': process.env.FACECHECK_API_KEY }
         });
         if (checkRes.data && checkRes.data.remaining_credits !== undefined) {
             return checkRes.data.remaining_credits;
         }
     } catch (e) {
-        console.error("Erro ao consultar créditos na API FaceCheck:", e.message);
+        console.error("Erro ao consultar créditos FaceCheck:", e.message);
     }
     return null;
 }
@@ -118,20 +117,14 @@ app.post('/api/verificar-pix', async (req, res) => {
     }
 });
 
-// Rota para descontar o crédito sincronizando com a API do FaceCheck
 app.post('/api/descontar-credito', async (req, res) => {
     try {
         const { email } = req.body;
         const userKey = email || 'walacegab1998@gmail.com';
 
-        // Tenta buscar saldo atualizado da API externa
         let saldoApi = await consultarCreditosFaceCheck();
         if (saldoApi !== null) {
             usuariosCreditos[userKey] = saldoApi;
-        }
-
-        if (usuariosCreditos[userKey] === undefined) {
-            usuariosCreditos[userKey] = 100;
         }
 
         if (usuariosCreditos[userKey] > 0) {
@@ -150,13 +143,6 @@ app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
         const { email } = req.body;
         const userKey = email || 'walacegab1998@gmail.com';
         
-        let saldoApi = await consultarCreditosFaceCheck();
-        if (saldoApi !== null) {
-            usuariosCreditos[userKey] = saldoApi;
-        } else if (usuariosCreditos[userKey] === undefined) {
-            usuariosCreditos[userKey] = 100;
-        }
-
         if (!req.file) {
             return res.status(400).json({ error: 'Nenhuma imagem enviada.' });
         }
@@ -166,46 +152,44 @@ app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
             filename: 'rosto.jpg', 
             contentType: req.file.mimetype || 'image/jpeg' 
         });
+        formDataUpload.append('id_search', '');
 
+        // 1. UPLOAD DA FOTO NA API FACECHECK
         const uploadRes = await axios.post('https://facecheck.id/api/v1/upload_pic', formDataUpload, {
             headers: {
                 ...formDataUpload.getHeaders(),
-                'Authorization': `Bearer ${process.env.FACECHECK_API_KEY}`
+                'Authorization': process.env.FACECHECK_API_KEY
             }
         });
 
         const idSearch = uploadRes.data.id_search || uploadRes.data.id;
         if (!idSearch) {
-            return res.json({
-                sucesso: true,
-                buscas_restantes: usuariosCreditos[userKey],
-                mensagem: 'Busca processada.',
+            return.json({
+                sucesso: false,
+                mensagem: 'Falha ao processar imagem na API FaceCheck.',
                 perfis_encontrados: []
             });
         }
 
+        // 2. DISPARAR A BUSCA REAL (ATENÇÃO: testing_mode: false obrigatoriamente para descontar e achar rostos reais)
         const searchRes = await axios.post('https://facecheck.id/api/v1/search', {
             id_search: idSearch,
             id: idSearch,
-            specify_id: idSearch,
             status: "completed",
             testing_mode: false 
         }, {
             headers: {
-                'Authorization': `Bearer ${process.env.FACECHECK_API_KEY}`,
+                'Authorization': process.env.FACECHECK_API_KEY,
                 'Content-Type': 'application/json'
             },
-            timeout: 35000
+            timeout: 45000
         });
 
         const dadosRetorno = searchRes.data;
         const itensBrutos = dadosRetorno.output?.items || dadosRetorno.items || dadosRetorno.output || dadosRetorno.results || [];
 
-        // Mapeamento rigoroso para extrair a URL exata do perfil da pessoa escaneada
         const perfisMapeados = itensBrutos.map(item => {
             let urlFinal = item.url || item.link || item.profileUrl || item.weburl;
-            
-            // Se a API retornar um username ou ID em vez da URL completa, tratamos aqui
             if (!urlFinal && item.username) {
                 urlFinal = `https://instagram.com/${item.username.replace('@', '')}`;
             }
@@ -221,20 +205,23 @@ app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
             };
         });
 
+        let saldoAtualizado = await consultarCreditosFaceCheck();
+        if (saldoAtualizado !== null) {
+            usuariosCreditos[userKey] = saldoAtualizado;
+        }
+
         res.json({
             sucesso: true,
-            buscas_restantes: usuariosCreditos[userKey],
+            buscas_restantes: usuariosCreditos[userKey] || 99,
             mensagem: 'Escaneamento biométrico executado com sucesso.',
             perfis_encontrados: perfisMapeados
         });
 
     } catch (error) {
-        console.error('Erro detalhado FaceCheck:', error.message);
-        res.json({
-            sucesso: true,
-            buscas_restantes: usuariosCreditos[email || 'walacegab1998@gmail.com'] || 99,
-            mensagem: 'Varredura concluída.',
-            perfis_encontrados: []
+        console.error('Erro detalhado FaceCheck:', error.response?.data || error.message);
+        res.status(500).json({
+            sucesso: false,
+            error: 'Erro ao conectar com a API FaceCheck: ' + (error.response?.data?.error || error.message)
         });
     }
 });
