@@ -834,7 +834,7 @@
                     <i class="fa-solid fa-coins"></i> Saldo: <span id="userCreditsCount">0</span> pesquisas
                 </div>
                 
-                <!-- Botão e Identificação Google Login -->
+                <!-- Botão e Identificação Google Login no Topo -->
                 <div id="googleLoginWrapper">
                     <div id="g_id_onload"
                          data-client_id="463131098345-iead7l2q9h6fgi6c36eq94ou04kmfbj3.apps.googleusercontent.com"
@@ -940,6 +940,26 @@
                 <div class="val">99.2%</div>
                 <div class="lbl">Precisão Biométrica</div>
             </div>
+        </div>
+    </div>
+
+    <!-- MODAL POP-UP INTERNO: Solicitar Login Google -->
+    <div class="modal" id="modalLoginObrigatorio">
+        <div class="modal-content-crop" style="max-width: 400px; text-align: center;">
+            <div style="font-size: 2.5rem; color: var(--gold); margin-bottom: 12px;">
+                <i class="fa-solid fa-shield-cat"></i>
+            </div>
+            <h3 style="margin: 0 0 8px 0; color: #fff; font-size: 1.3rem; font-weight: 800;">
+                Identificação Necessária
+            </h3>
+            <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 24px; line-height: 1.4;">
+                Para prosseguir com a investigação biométrica e garantir a segurança das buscas, faça o login com sua Conta Google.
+            </p>
+
+            <!-- Botão do Google dentro do Pop-up interno -->
+            <div id="googleLoginModalWrapper" style="display: flex; justify-content: center; margin-bottom: 16px;"></div>
+
+            <button class="btn-modal btn-close" onclick="fecharModalLogin()">Cancelar</button>
         </div>
     </div>
 
@@ -1049,9 +1069,21 @@
         window.addEventListener('DOMContentLoaded', () => {
             if (usuarioEmail) {
                 ativarInterfaceLogada(usuarioEmail);
+            } else {
+                // Inicializa o botão do Google dentro do pop-up modal caso precise
+                renderizarBotaoGoogleModal();
             }
             configurarInteracaoCirculo();
         });
+
+        function renderizarBotaoGoogleModal() {
+            const container = document.getElementById('googleLoginModalWrapper');
+            container.innerHTML = '';
+            google.accounts.id.renderButton(
+                container,
+                { theme: "outline", size: "large", width: "280" }
+            );
+        }
 
         function handleGoogleLogin(response) {
             const base64Url = response.credential.split('.')[1];
@@ -1066,6 +1098,7 @@
 
             ativarInterfaceLogada(usuarioEmail);
             sincronizarUsuarioBackend(usuarioEmail);
+            fecharModalLogin();
         }
 
         function ativarInterfaceLogada(email) {
@@ -1110,7 +1143,6 @@
                         const imgW = thumb.naturalWidth;
                         const imgH = thumb.naturalHeight;
                         
-                        // Centraliza e ajusta perfeitamente no círculo para mostrar o rosto inteiro
                         const scaleX = containerSize / imgW;
                         const scaleY = containerSize / imgH;
                         currentScale = Math.max(scaleX, scaleY);
@@ -1267,11 +1299,9 @@
                 return;
             }
 
-            // CORREÇÃO: Se o usuário não estiver logado, avisa claramente e rola para o topo para logar
+            // SE NÃO ESTIVER LOGADO: Abre o pop-up modal interno bonito pedindo para logar
             if (!usuarioEmail) {
-                alert("Por favor, faça login com sua Conta Google no topo da página antes de prosseguir com a investigação biométrica.");
-                document.body.classList.remove('focus-mode');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                abrirModalLogin();
                 return;
             }
 
@@ -1279,6 +1309,17 @@
             document.getElementById('zoomHint').style.display = 'none';
 
             iniciarEscaneamentoSimulado();
+        }
+
+        function abrirModalLogin() {
+            document.body.classList.add('modal-open');
+            document.getElementById('modalLoginObrigatorio').style.display = 'flex';
+            renderizarBotaoGoogleModal();
+        }
+
+        function fecharModalLogin() {
+            document.body.classList.remove('modal-open');
+            document.getElementById('modalLoginObrigatorio').style.display = 'none';
         }
 
         function animarDestaqueIcones() {
@@ -1418,8 +1459,7 @@
 
         function clicarDesbloquearResultado(cardIndex) {
             if (!usuarioEmail) {
-                alert("Faça login com sua conta Google para continuar.");
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                abrirModalLogin();
                 return;
             }
 
@@ -1543,8 +1583,7 @@
 
         async function abrirModalPix(nomePacote, valor, qtdCreditos) {
             if (!usuarioEmail) {
-                alert("Faça login com sua conta Google para continuar.");
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                abrirModalLogin();
                 return;
             }
 
@@ -1626,7 +1665,7 @@
             const userText = document.getElementById('proofUser');
             const cidade = cidades[Math.floor(Math.random() * cidades.length)];
             
-            userText.innerText = `Usuário em nas proximidades de ${cidade}`;
+            userText.innerText = `Usuário em proximidades de ${cidade}`;
             toast.classList.add('show');
 
             setTimeout(() => {
