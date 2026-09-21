@@ -718,16 +718,29 @@
         .modal-content-crop {
             background: rgba(15, 23, 42, 0.95);
             border: 1px solid rgba(245, 158, 11, 0.35);
-            padding: 26px;
+            padding: 30px 26px;
             border-radius: 32px;
             width: 90%;
-            max-width: 460px;
+            max-width: 420px;
             text-align: center;
             box-shadow: 0 30px 70px rgba(0,0,0,0.9), 0 0 40px var(--gold-glow);
             color: #fff;
             position: relative;
             backdrop-filter: blur(20px);
         }
+
+        .modal-close-x {
+            position: absolute;
+            top: 18px;
+            right: 18px;
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .modal-close-x:hover { color: #fff; }
 
         .timer-box {
             background: rgba(239, 68, 68, 0.15);
@@ -943,23 +956,29 @@
         </div>
     </div>
 
-    <!-- MODAL POP-UP INTERNO: Solicitar Login Google -->
+    <!-- MODAL POP-UP ESTILIZADO: Solicitar Login Google -->
     <div class="modal" id="modalLoginObrigatorio">
-        <div class="modal-content-crop" style="max-width: 400px; text-align: center;">
-            <div style="font-size: 2.5rem; color: var(--gold); margin-bottom: 12px;">
-                <i class="fa-solid fa-shield-cat"></i>
+        <div class="modal-content-crop">
+            <button class="modal-close-x" onclick="fecharModalLogin()"><i class="fa-solid fa-xmark"></i></button>
+            
+            <div class="logo-icon" style="margin: 0 auto 16px auto; width: 56px; height: 56px; font-size: 1.5rem;">
+                <i class="fa-solid fa-fingerprint"></i>
             </div>
-            <h3 style="margin: 0 0 8px 0; color: #fff; font-size: 1.3rem; font-weight: 800;">
-                Identificação Necessária
+
+            <h3 style="margin: 0 0 8px 0; color: #fff; font-size: 1.4rem; font-weight: 800; line-height: 1.2;">
+                Para prosseguir, continue para o login no <span style="background: var(--gold-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Google</span>
             </h3>
+            
             <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 24px; line-height: 1.4;">
-                Para prosseguir com a investigação biométrica e garantir a segurança das buscas, faça o login com sua Conta Google.
+                Precisamos da sua conta Google para obter o resultado da pesquisa.
             </p>
 
-            <!-- Botão do Google dentro do Pop-up interno -->
-            <div id="googleLoginModalWrapper" style="display: flex; justify-content: center; margin-bottom: 16px;"></div>
+            <!-- Botão do Google gerado dinamicamente dentro do modal -->
+            <div id="googleLoginModalWrapper" style="display: flex; justify-content: center; margin-bottom: 16px; min-height: 40px;"></div>
 
-            <button class="btn-modal btn-close" onclick="fecharModalLogin()">Cancelar</button>
+            <div style="font-size: 0.72rem; color: var(--text-dim); display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 15px;">
+                <i class="fa-solid fa-lock" style="color: var(--gold);"></i> Seus dados estão seguros e não serão compartilhados com terceiros.
+            </div>
         </div>
     </div>
 
@@ -1069,9 +1088,6 @@
         window.addEventListener('DOMContentLoaded', () => {
             if (usuarioEmail) {
                 ativarInterfaceLogada(usuarioEmail);
-            } else {
-                // Inicializa o botão do Google dentro do pop-up modal caso precise
-                renderizarBotaoGoogleModal();
             }
             configurarInteracaoCirculo();
         });
@@ -1079,10 +1095,14 @@
         function renderizarBotaoGoogleModal() {
             const container = document.getElementById('googleLoginModalWrapper');
             container.innerHTML = '';
-            google.accounts.id.renderButton(
-                container,
-                { theme: "outline", size: "large", width: "280" }
-            );
+            try {
+                google.accounts.id.renderButton(
+                    container,
+                    { theme: "filled_black", size: "large", width: "300", text: "continue_with" }
+                );
+            } catch (e) {
+                console.error("Erro ao renderizar botão Google:", e);
+            }
         }
 
         function handleGoogleLogin(response) {
@@ -1299,7 +1319,7 @@
                 return;
             }
 
-            // SE NÃO ESTIVER LOGADO: Abre o pop-up modal interno bonito pedindo para logar
+            // SE NÃO ESTIVER LOGADO: Abre o pop-up modal interno personalizado
             if (!usuarioEmail) {
                 abrirModalLogin();
                 return;
