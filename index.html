@@ -45,26 +45,37 @@
             user-select: none;
         }
 
-        /* Classe para embaçar todo o fundo quando a foto estiver ativa no círculo */
-        body.focus-mode .main-content-wrapper > *:not(.hero) {
+        /* MODO FOCO: Quando a foto é carregada, esconde os ícones e expande o círculo */
+        body.focus-mode header,
+        body.focus-mode .hero h1,
+        body.focus-mode .hero p,
+        body.focus-mode .investigator-badge,
+        body.focus-mode .guarantee-badge,
+        body.focus-mode .stats-container {
             filter: blur(8px);
-            opacity: 0.4;
+            opacity: 0.3;
             pointer-events: none;
             transition: all 0.4s ease;
         }
 
-        body.focus-mode header {
-            filter: blur(8px);
-            opacity: 0.4;
+        body.focus-mode .orbit-ring {
+            opacity: 0;
+            transform: scale(1.3);
             pointer-events: none;
+            transition: all 0.4s ease;
         }
 
         body.focus-mode .orbit-container {
-            filter: none !important;
-            opacity: 1 !important;
-            pointer-events: auto !important;
-            transform: scale(1.05);
+            width: 320px;
+            height: 320px;
+            transform: scale(1.25);
             transition: transform 0.4s ease;
+        }
+
+        body.focus-mode .upload-center {
+            width: 240px !important;
+            height: 240px !important;
+            box-shadow: 0 0 50px rgba(245, 158, 11, 0.5), 0 25px 50px rgba(0,0,0,0.9);
         }
 
         .main-content-wrapper {
@@ -184,6 +195,7 @@
             gap: 8px;
             margin-bottom: 20px;
             backdrop-filter: blur(8px);
+            transition: all 0.4s ease;
         }
 
         .hero h1 {
@@ -192,6 +204,7 @@
             line-height: 1.15;
             margin-bottom: 16px;
             letter-spacing: -1.5px;
+            transition: all 0.4s ease;
         }
 
         .hero h1 span {
@@ -205,6 +218,7 @@
             font-size: 1.05rem;
             margin-top: 0;
             margin-bottom: 30px;
+            transition: all 0.4s ease;
         }
 
         .orbit-container {
@@ -225,7 +239,7 @@
             border: 1.5px dashed rgba(245, 158, 11, 0.25);
             border-radius: 50%;
             animation: spin 20s linear infinite;
-            transition: all 0.5s ease;
+            transition: all 0.4s ease;
         }
 
         .orbit-ring.scanning {
@@ -245,7 +259,7 @@
             height: 150px;
             box-shadow: 0 0 35px var(--gold-glow), 0 20px 40px rgba(0,0,0,0.8);
             cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: width 0.4s ease, height 0.4s ease, box-shadow 0.4s ease;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -283,23 +297,24 @@
             cursor: grabbing;
         }
 
-        /* Instrução flutuante sutil de ajuda para o zoom/arraste */
         .zoom-hint {
             position: absolute;
-            bottom: -36px;
+            bottom: -40px;
             left: 50%;
             transform: translateX(-50%);
             background: rgba(15, 23, 42, 0.95);
-            border: 1px solid rgba(245, 158, 11, 0.3);
+            border: 1px solid rgba(245, 158, 11, 0.4);
             color: var(--gold);
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 0.72rem;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 700;
             white-space: nowrap;
             pointer-events: none;
             display: none;
             z-index: 25;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.6);
+            backdrop-filter: blur(8px);
         }
 
         .scanner-laser {
@@ -473,6 +488,7 @@
             border-radius: 20px;
             border: 1px solid rgba(16, 185, 129, 0.3);
             backdrop-filter: blur(8px);
+            transition: all 0.4s ease;
         }
 
         .scan-loader {
@@ -681,6 +697,7 @@
             justify-content: center;
             margin-top: 40px;
             margin-bottom: 50px;
+            transition: all 0.4s ease;
         }
 
         .stat-card { text-align: center; }
@@ -882,7 +899,7 @@
                 </div>
 
                 <!-- Dica de ajuda dinâmica para zoom e arraste -->
-                <div class="zoom-hint" id="zoomHint">Arraste para mover • Ctrl + Roda para Zoom</div>
+                <div class="zoom-hint" id="zoomHint">Posicione o rosto • Ctrl + Roda para Zoom</div>
             </div>
 
             <button class="scan-action-btn" id="scanBtn" onclick="clicarProcurar()">
@@ -1085,7 +1102,7 @@
                     thumb.src = e.target.result;
                     
                     thumb.onload = () => {
-                        currentScale = 1; // Começa num tamanho adequado e não gigante
+                        currentScale = 1; 
                         imgX = 0;
                         imgY = 0;
                         atualizarTransformacaoImagem();
@@ -1094,7 +1111,7 @@
                         document.getElementById('zoomHint').style.display = 'block';
                         document.getElementById('uploadPlaceholder').style.display = 'none';
 
-                        // Ativa o modo de foco (embaça o fundo)
+                        // Ativa o modo de foco limpo (esconde ícones, aumenta a bola central e embaça o fundo)
                         document.body.classList.add('focus-mode');
                     };
                 }
@@ -1198,8 +1215,8 @@
             canvas.height = 400;
             const ctx = canvas.getContext('2d');
 
-            const containerWidth = 150;
-            const containerHeight = 150;
+            const containerWidth = 240; // Ajustado para o novo tamanho da bola expandida
+            const containerHeight = 240;
             const scaleFactor = 400 / containerWidth;
 
             ctx.clearRect(0, 0, 400, 400);
@@ -1249,7 +1266,7 @@
                 return;
             }
 
-            // Remove o foco embaçado ao iniciar a busca
+            // Remove o modo de foco limpo ao iniciar a busca
             document.body.classList.remove('focus-mode');
             document.getElementById('zoomHint').style.display = 'none';
 
@@ -1264,7 +1281,7 @@
         }
 
         function moverPontosBiometricos() {
-            const containerSize = 150; 
+            const containerSize = 240; 
             const dotElements = [];
 
             for (let i = 0; i < 25; i++) {
