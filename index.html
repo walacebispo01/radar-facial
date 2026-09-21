@@ -841,7 +841,8 @@
                     <div class="icon-item"><i class="fa-brands fa-facebook-f"></i></div>
                 </div>
 
-                <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="carregarFotoDireta(event)">
+                <!-- Input ajustado para abrir a câmara frontal/traseira ou galeria em qualquer telemóvel -->
+                <input type="file" id="imageInput" accept="image/*" capture="environment" style="display: none;" onchange="carregarFotoDireta(event)">
 
                 <div class="upload-center" id="uploadBtn" onclick="document.getElementById('imageInput').click()">
                     <div class="scanner-laser" id="scannerLaser"></div>
@@ -1508,7 +1509,7 @@
                     document.getElementById('qrCodeBox').innerHTML = '<p style="font-size: 0.7rem; color: red; text-align:center;">Erro ao gerar QR Code.</p>';
                 }
 
-            } apps (err) {
+            } catch (err) {
                 console.error(err);
                 document.getElementById('qrCodeBox').innerHTML = '<p style="font-size: 0.7rem; color: red; text-align:center;">Erro de conexão com o servidor.</p>';
             }
