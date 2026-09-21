@@ -995,7 +995,6 @@
                     <div class="icon-item"><i class="fa-brands fa-facebook-f"></i></div>
                 </div>
 
-                <!-- Input blindado e corrigido contra loop infinito -->
                 <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="carregarFotoDireta(event)">
 
                 <div class="upload-center" id="uploadBtn" onclick="dispararSeletorArquivo(event)">
@@ -1300,7 +1299,6 @@
             } catch (e) { console.error("Erro ao sincronizar user:", e); }
         }
 
-        // CORREÇÃO DO LOOP DE UPLOAD: Limpa o input antes do click para evitar repetição infinita
         function dispararSeletorArquivo(event) {
             if (event) {
                 event.stopPropagation();
@@ -1739,6 +1737,7 @@
             }
         }
 
+        // CORREÇÃO CRUCIAL AQUI: Validação real do PIX no backend antes de somar créditos
         async function verificarPagamentoPix() {
             try {
                 const response = await fetch('/api/verificar-pix', {
@@ -1748,19 +1747,19 @@
                 });
 
                 const data = await response.json();
+                
                 if (data.pago || data.success) {
-                    saldoCreditos = data.creditos || (saldoCreditos + quantidadeCreditosComprando);
+                    saldoCreditos = data.creditos !== undefined ? data.creditos : (saldoCreditos + quantidadeCreditosComprando);
+                    atualizarInterfaceSaldo();
+                    document.getElementById('modalPix').style.display = 'none';
+                    document.body.classList.remove('modal-open');
+                    alert('Pagamento confirmado! Seus créditos foram adicionados com sucesso.');
                 } else {
-                    saldoCreditos += quantidadeCreditosComprando;
+                    alert('Pagamento ainda não confirmado. Conclua o PIX no seu aplicativo bancário e clique novamente.');
                 }
             } catch (e) {
-                saldoCreditos += quantidadeCreditosComprando;
+                alert('Ainda aguardando compensação do PIX pelo gateway. Tente novamente em alguns segundos.');
             }
-
-            atualizarInterfaceSaldo();
-            document.getElementById('modalPix').style.display = 'none';
-            document.body.classList.remove('modal-open');
-            alert('Pagamento confirmado! Seus créditos foram adicionados com sucesso.');
         }
 
         function startPixTimer(duration) {
