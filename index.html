@@ -172,6 +172,13 @@
             color: #fff;
         }
 
+        /* Estilização para arredondar o botão nativo do Google */
+        #googleLoginWrapper iframe {
+            border-radius: 100px !important;
+            overflow: hidden !important;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
         .hero {
             text-align: center;
             margin-top: 35px;
@@ -847,14 +854,20 @@
                     <i class="fa-solid fa-coins"></i> Saldo: <span id="userCreditsCount">0</span> pesquisas
                 </div>
                 
-                <!-- Botão e Identificação Google Login no Topo -->
+                <!-- Botão do Google no Topo configurado no tema escuro -->
                 <div id="googleLoginWrapper">
                     <div id="g_id_onload"
                          data-client_id="463131098345-iead7l2q9h6fgi6c36eq94ou04kmfbj3.apps.googleusercontent.com"
                          data-callback="handleGoogleLogin"
                          data-auto_prompt="false">
                     </div>
-                    <div class="g_id_signin" data-type="standard" data-size="medium"></div>
+                    <div class="g_id_signin" 
+                         data-type="standard" 
+                         data-shape="pill" 
+                         data-theme="filled_black" 
+                         data-text="signin_with" 
+                         data-size="large">
+                    </div>
                 </div>
                 <div id="userProfileBadge" class="user-profile-badge" style="display: none;">
                     <i class="fa-solid fa-user-check" style="color: var(--gold);"></i> <span id="userEmailDisplay">conta@email.com</span>
@@ -1098,7 +1111,7 @@
             try {
                 google.accounts.id.renderButton(
                     container,
-                    { theme: "filled_black", size: "large", width: "300", text: "continue_with" }
+                    { theme: "filled_black", size: "large", width: "300", text: "continue_with", shape: "pill" }
                 );
             } catch (e) {
                 console.error("Erro ao renderizar botão Google:", e);
@@ -1319,7 +1332,6 @@
                 return;
             }
 
-            // SE NÃO ESTIVER LOGADO: Abre o pop-up modal interno personalizado
             if (!usuarioEmail) {
                 abrirModalLogin();
                 return;
