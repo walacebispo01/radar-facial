@@ -330,8 +330,7 @@
 
         .interactive-preview-container img {
             position: absolute;
-            top: 50%;
-            left: 50%;
+            top: 50%; left: 50%;
             transform: translate(-50%, -50%);
             cursor: grab;
             user-select: none;
@@ -549,11 +548,11 @@
             transition: width 0.05s linear;
         }
 
-        /* ESTILO DOS RESULTADOS INSPIRADO NO LAYOUT DE REFERÊNCIA */
+        /* SEÇÃO DE RESULTADOS EM GRADE DE QUADRADOS */
         .results-section {
             display: none;
             width: 100%;
-            max-width: 580px;
+            max-width: 720px;
             margin-top: 30px;
             text-align: left;
             position: relative;
@@ -561,7 +560,7 @@
         }
 
         .results-header-title {
-            font-size: 1.6rem;
+            font-size: 1.8rem;
             font-weight: 800;
             text-align: center;
             margin-bottom: 24px;
@@ -571,59 +570,79 @@
             -webkit-text-fill-color: transparent;
         }
 
-        /* Cartão de Resultado Estilo Sherlock */
-        .result-card-sherlock {
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+
+        /* Cartão de Quadrado Individual */
+        .result-card-square {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
-            border-radius: 24px;
-            margin-bottom: 16px;
+            border-radius: 20px;
+            padding: 16px;
             display: flex;
+            flex-direction: column;
             align-items: center;
             position: relative;
             overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
             backdrop-filter: blur(12px);
+            text-align: center;
+            transition: transform 0.2s;
         }
 
-        /* Barra lateral colorida da rede social */
+        .result-card-square:hover {
+            transform: translateY(-3px);
+        }
+
+        /* O PRIMEIRO CARTÃO (MAIOR CORRESPONDÊNCIA) DESTACADO EM TAMANHO E COR */
+        .result-card-square.featured {
+            grid-column: 1 / -1;
+            flex-direction: row;
+            justify-content: space-between;
+            text-align: left;
+            padding: 20px 24px;
+            border-width: 2px;
+        }
+
         .social-gradient-bar {
-            width: 6px;
+            width: 5px;
             height: 100%;
             position: absolute;
             left: 0; top: 0;
         }
 
-        .result-content-inner {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            width: 100%;
-            padding: 16px 20px 16px 24px;
-            gap: 15px;
-        }
-
-        .result-left-info {
-            display: flex;
-            align-items: center;
-            gap: 16px;
+        .result-card-square.featured .social-gradient-bar {
+            width: 8px;
         }
 
         .avatar-match-wrapper {
             position: relative;
-            width: 75px;
-            height: 75px;
+            width: 90px;
+            height: 90px;
             flex-shrink: 0;
+            margin-bottom: 10px;
+        }
+
+        .result-card-square.featured .avatar-match-wrapper {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 0;
+            margin-right: 20px;
         }
 
         .match-badge-tag {
             position: absolute;
-            top: -6px;
-            right: -8px;
+            top: -4px;
+            right: -6px;
             background: #10b981;
             color: #fff;
-            font-size: 0.68rem;
+            font-size: 0.72rem;
             font-weight: 900;
-            padding: 2px 7px;
+            padding: 3px 8px;
             border-radius: 20px;
             box-shadow: 0 2px 8px rgba(16,185,129,0.5);
             z-index: 5;
@@ -631,15 +650,15 @@
         }
 
         .result-avatar-img {
-            width: 75px;
-            height: 75px;
+            width: 100%;
+            height: 100%;
             border-radius: 50%;
             object-fit: cover;
             border: 2px solid rgba(255,255,255,0.15);
         }
 
         .blur-target {
-            filter: blur(10px);
+            filter: blur(12px);
             user-select: none;
             pointer-events: none;
             transition: filter 0.5s ease;
@@ -648,44 +667,61 @@
         .result-text-details {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 6px;
+            width: 100%;
+            align-items: center;
+        }
+
+        .result-card-square.featured .result-text-details {
+            align-items: flex-start;
+            flex: 1;
         }
 
         .network-label-row {
             display: flex;
             align-items: center;
             gap: 6px;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             font-weight: 800;
         }
 
         .username-blur-text {
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             color: #fff;
             font-weight: 700;
             letter-spacing: 0.5px;
         }
 
-        .btn-unlock-sherlock {
+        .btn-unlock-square {
             background: var(--gold-gradient);
             color: #000;
             border: none;
-            padding: 10px 18px;
+            padding: 10px 16px;
             font-size: 0.78rem;
             font-weight: 900;
             border-radius: 100px;
             cursor: pointer;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 6px;
             box-shadow: 0 4px 15px var(--gold-glow);
             transition: all 0.2s ease;
             text-transform: uppercase;
+            width: 100%;
+            margin-top: 12px;
             white-space: nowrap;
         }
 
-        .btn-unlock-sherlock:hover {
-            transform: scale(1.05);
+        .result-card-square.featured .btn-unlock-square {
+            width: auto;
+            margin-top: 0;
+            padding: 12px 24px;
+            font-size: 0.85rem;
+        }
+
+        .btn-unlock-square:hover {
+            transform: scale(1.03);
             box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
         }
 
@@ -726,8 +762,7 @@
 
         .plan-badge {
             position: absolute;
-            top: -9px;
-            right: 15px;
+            top: -9px; right: 15px;
             background: var(--gold-gradient);
             color: #000;
             font-size: 0.6rem;
@@ -994,10 +1029,10 @@
             </div>
         </div>
 
-        <!-- SEÇÃO DE RESULTADOS ESTILO SHERLOCK (BORRADOS ANTES DO PAGAMENTO) -->
+        <!-- SEÇÃO DE RESULTADOS EM GRADE DE QUADRADOS (SORTEADOS DE 4 A 12) -->
         <div class="results-section" id="resultsSection">
             <h2 class="results-header-title">find anyone's social media</h2>
-            <div id="resultsListContainer"></div>
+            <div class="results-grid" id="resultsGridContainer"></div>
         </div>
 
         <div class="stats-container" id="statsContainer">
@@ -1137,12 +1172,12 @@
         let initialPinchDistance = null;
 
         const perfisDatabaseFalsos = [
-            { rede: 'Instagram', icon: 'fa-instagram', gradient: 'linear-gradient(to bottom, #833ab4, #fd1d1d, #fcb045)', usernames: ['@marcelo_sp92', '@carol.vlog', '@lucas_dev_br', '@vanessa_alves'] },
-            { rede: 'Telegram', icon: 'fa-telegram', gradient: 'linear-gradient(to bottom, #0088cc, #229ed9)', usernames: ['@marcos_silva_oficial', '@alberto_sampaio_br'] },
-            { rede: 'YouTube', icon: 'fa-youtube', gradient: 'linear-gradient(to bottom, #ff0000, #cc0000)', usernames: ['@CanalOficial_SP', '@VlogDeHoje'] },
-            { rede: 'TikTok', icon: 'fa-tiktok', gradient: 'linear-gradient(to bottom, #25f4ee, #fe2f55)', usernames: ['@alvo_digital_oficial', '@vlog_da_semana', '@clips_sp_32'] },
-            { rede: 'LinkedIn', icon: 'fa-linkedin-in', gradient: 'linear-gradient(to bottom, #0077b5, #004182)', usernames: ['@perfil_profissional_sp', '@eng_marcos_paulo'] },
-            { rede: 'Pinterest', icon: 'fa-pinterest-p', gradient: 'linear-gradient(to bottom, #e60023, #ad081b)', usernames: ['@inspira_design', '@board_sp'] }
+            { rede: 'Instagram', icon: 'fa-instagram', color: '#fd1d1d', gradient: 'linear-gradient(to bottom, #833ab4, #fd1d1d, #fcb045)', usernames: ['@marcelo_sp92', '@carol.vlog', '@lucas_dev_br', '@vanessa_alves'] },
+            { rede: 'Telegram', icon: 'fa-telegram', color: '#229ed9', gradient: 'linear-gradient(to bottom, #0088cc, #229ed9)', usernames: ['@marcos_silva_oficial', '@alberto_sampaio_br'] },
+            { rede: 'YouTube', icon: 'fa-youtube', color: '#ff0000', gradient: 'linear-gradient(to bottom, #ff0000, #cc0000)', usernames: ['@CanalOficial_SP', '@VlogDeHoje'] },
+            { rede: 'TikTok', icon: 'fa-tiktok', color: '#00f2fe', gradient: 'linear-gradient(to bottom, #25f4ee, #fe2f55)', usernames: ['@alvo_digital_oficial', '@vlog_da_semana', '@clips_sp_32'] },
+            { rede: 'LinkedIn', icon: 'fa-linkedin-in', color: '#0077b5', gradient: 'linear-gradient(to bottom, #0077b5, #004182)', usernames: ['@perfil_profissional_sp', '@eng_marcos_paulo'] },
+            { rede: 'Pinterest', icon: 'fa-pinterest-p', color: '#e60023', gradient: 'linear-gradient(to bottom, #e60023, #ad081b)', usernames: ['@inspira_design', '@board_sp'] }
         ];
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -1526,7 +1561,7 @@
                     document.body.classList.remove('focus-mode');
                     document.getElementById('heroSection').style.display = 'none';
 
-                    exibirResultadosSherlockBorrados();
+                    exibirResultadosQuadradosSorteados();
                 } else {
                     width += incrementoPorTick;
                     if (width > 100) width = 100;
@@ -1538,46 +1573,56 @@
             }, intervaloTick); 
         }
 
-        function exibirResultadosSherlockBorrados() {
+        function exibirResultadosQuadradosSorteados() {
             document.getElementById('scanLoader').style.display = 'none';
             const imgFinal = capturarImagemFinalCirculo();
 
-            const container = document.getElementById('resultsListContainer');
+            const container = document.getElementById('resultsGridContainer');
             container.innerHTML = '';
             document.getElementById('resultsSection').style.display = 'block';
             document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
 
-            const redesEmbaralhadas = [...perfisDatabaseFalsos].sort(() => 0.5 - Math.random());
-
-            for (let i = 0; i < 4; i++) {
-                const redeData = redesEmbaralhadas[i % redesEmbaralhadas.length];
+            // Sorteia a quantidade de resultados entre 4 e 12
+            const quantidadeResultados = Math.floor(Math.random() * (12 - 4 + 1)) + 4;
+            
+            // Gera array com dados simulados e embaralhados
+            let listaPerfis = [];
+            for (let i = 0; i < quantidadeResultados; i++) {
+                const redeData = perfisDatabaseFalsos[Math.floor(Math.random() * perfisDatabaseFalsos.length)];
                 const username = redeData.usernames[Math.floor(Math.random() * redeData.usernames.length)];
-                const precisao = (Math.random() * (99.1 - 89.5) + 89.5).toFixed(1);
+                // Precisão decrescente para o primeiro ser o maior
+                const precisao = i === 0 ? (Math.random() * (99.5 - 94.0) + 94.0).toFixed(1) : (Math.random() * (93.9 - 78.0) + 78.0).toFixed(1);
+                
+                listaPerfis.push({ redeData, username, precisao });
+            }
+
+            // Ordena decrescente pela precisão para garantir que o primeiro seja o de maior destaque
+            listaPerfis.sort((a, b) => parseFloat(b.precisao) - parseFloat(a.precisao));
+
+            listaPerfis.forEach((item, index) => {
+                const isFeatured = index === 0; // O primeiro cartão fica destacado em maior tamanho com a cor da rede
+                const cardClass = isFeatured ? 'result-card-square featured' : 'result-card-square';
 
                 const cardHtml = `
-                    <div class="result-card-sherlock" id="card-sherlock-${i}">
-                        <div class="social-gradient-bar" style="background: ${redeData.gradient};"></div>
-                        <div class="result-content-inner">
-                            <div class="result-left-info">
-                                <div class="avatar-match-wrapper">
-                                    <span class="match-badge-tag">${precisao}%</span>
-                                    <img class="result-avatar-img blur-target" src="${imgFinal}" alt="Alvo">
-                                </div>
-                                <div class="result-text-details">
-                                    <div class="network-label-row" style="color: #fff;">
-                                        <i class="fa-brands ${redeData.icon}"></i> ${redeData.rede}
-                                    </div>
-                                    <div class="username-blur-text blur-target">${username}</div>
-                                </div>
-                            </div>
-                            <button class="btn-unlock-sherlock" onclick="clicarDesbloquearResultado(${i})">
-                                <i class="fa-solid fa-lock"></i> Ver Resultado
-                            </button>
+                    <div class="${cardClass}" id="card-square-${index}" style="${isFeatured ? 'border-color: ' + item.redeData.color + '; box-shadow: 0 10px 35px ' + item.redeData.color + '40;' : ''}">
+                        <div class="social-gradient-bar" style="background: ${item.redeData.gradient};"></div>
+                        <div class="avatar-match-wrapper">
+                            <span class="match-badge-tag">${item.precisao}%</span>
+                            <img class="result-avatar-img blur-target" src="${imgFinal}" alt="Alvo">
                         </div>
+                        <div class="result-text-details">
+                            <div class="network-label-row" style="color: ${item.redeData.color};">
+                                <i class="fa-brands ${item.redeData.icon}"></i> ${item.redeData.rede}
+                            </div>
+                            <div class="username-blur-text blur-target">${item.username}</div>
+                        </div>
+                        <button class="btn-unlock-square" onclick="clicarDesbloquearResultado(${index})">
+                            <i class="fa-solid fa-lock"></i> Ver Resultado
+                        </button>
                     </div>
                 `;
                 container.innerHTML += cardHtml;
-            }
+            });
         }
 
         function clicarDesbloquearResultado(cardIndex) {
@@ -1646,37 +1691,35 @@
 
         function renderizarResultadosReaisAPI(itens) {
             const imgFinal = capturarImagemFinalCirculo();
-            const container = document.getElementById('resultsListContainer');
+            const container = document.getElementById('resultsGridContainer');
             container.innerHTML = '';
             document.getElementById('resultsSection').style.display = 'block';
             document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
 
-            itens.forEach((item) => {
+            itens.forEach((item, index) => {
                 const precisao = item.score ? (item.score * 100).toFixed(1) : '98.5';
                 const urlPerfil = item.url || '#';
                 const tituloPerfil = item.title || 'Perfil Web Verificado';
                 const previewImg = item.image || imgFinal;
+                const isFeatured = index === 0;
+                const cardClass = isFeatured ? 'result-card-square featured' : 'result-card-square';
 
                 const cardHtml = `
-                    <div class="result-card-sherlock">
+                    <div class="${cardClass}" style="${isFeatured ? 'border-color: #10b981; box-shadow: 0 10px 35px rgba(16,185,129,0.3);' : ''}">
                         <div class="social-gradient-bar" style="background: linear-gradient(to bottom, #10b981, #059669);"></div>
-                        <div class="result-content-inner">
-                            <div class="result-left-info">
-                                <div class="avatar-match-wrapper">
-                                    <span class="match-badge-tag">${precisao}%</span>
-                                    <img class="result-avatar-img" src="${previewImg}" alt="Perfil Real">
-                                </div>
-                                <div class="result-text-details">
-                                    <div class="network-label-row" style="color: #34d399;">
-                                        <i class="fa-solid fa-globe"></i> FaceCheck API
-                                    </div>
-                                    <div class="username-blur-text">${tituloPerfil}</div>
-                                </div>
-                            </div>
-                            <a href="${urlPerfil}" target="_blank" class="btn-unlock-sherlock" style="background: #10b981; color: #fff; text-decoration: none;">
-                                <i class="fa-solid fa-arrow-up-right-from-square"></i> Acessar
-                            </a>
+                        <div class="avatar-match-wrapper">
+                            <span class="match-badge-tag">${precisao}%</span>
+                            <img class="result-avatar-img" src="${previewImg}" alt="Perfil Real">
                         </div>
+                        <div class="result-text-details">
+                            <div class="network-label-row" style="color: #34d399;">
+                                <i class="fa-solid fa-globe"></i> FaceCheck API
+                            </div>
+                            <div class="username-blur-text">${tituloPerfil}</div>
+                        </div>
+                        <a href="${urlPerfil}" target="_blank" class="btn-unlock-square" style="background: #10b981; color: #fff; text-decoration: none;">
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i> Acessar
+                        </a>
                     </div>
                 `;
                 container.innerHTML += cardHtml;
