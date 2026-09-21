@@ -1592,14 +1592,13 @@
             container.innerHTML = '';
             document.getElementById('resultsSection').style.display = 'block';
 
-            // Garante que se a API retornar itens, usamos os links reais específicos vindos dela
             const listaExibicao = (itens && itens.length > 0) ? itens : [
                 { title: "Perfil Instagram Mapeado", url: "https://instagram.com", score: 0.985, image: imgFinal }
             ];
 
             listaExibicao.forEach((item, index) => {
                 const precisao = item.score ? (item.score * 100).toFixed(1) : '98.5';
-                const urlPerfil = item.url || item.link || 'https://instagram.com';
+                const urlPerfil = item.url || item.link || item.profileUrl || 'https://instagram.com';
                 const tituloPerfil = item.title || item.username || 'Perfil Público Detectado';
                 const previewImg = item.image || imgFinal;
                 const isFeatured = index === 0;
@@ -1608,7 +1607,6 @@
                 const classeBloqueio = 'locked'; 
                 const textoBotao = temCreditos ? 'DESBLOQUEAR COM 1 CRÉDITO' : 'DESBLOQUEAR PERFIL (PIX)';
                 
-                // Passa a URL exata do perfil coletada do item para a função de desbloqueio
                 const acaoBotao = temCreditos 
                     ? `consumirCreditoEDesbloquear('${urlPerfil}', this)` 
                     : `abrirModalPlanos()`;
@@ -1638,10 +1636,27 @@
             document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Transição da Fase 1 para a Fase 2 abrindo o link exato do perfil correspondente
-        function consumirCreditoEDesbloquear(urlOriginal, elementoBotao) {
+        // Função corrigida: Consome o crédito localmente e sincroniza o desconto na API do backend
+        async function consumirCreditoEDesbloquear(urlOriginal, elementoBotao) {
             if (saldoCreditos > 0) {
-                saldoCreditos -= 1;
+                // Tenta descontar o crédito na API do servidor
+                try {
+                    const res = await fetch('/api/descontar-credito', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: usuarioEmail })
+                    });
+                    const data = await res.json();
+                    if (data.success && data.creditos !== undefined) {
+                        saldoCreditos = data.creditos;
+                    } else {
+                        saldoCreditos -= 1; // Fallback local se o server não retornar erro crítico
+                    }
+                } catch (e) {
+                    console.error("Erro ao abater crédito na API:", e);
+                    saldoCreditos -= 1;
+                }
+
                 atualizarInterfaceSaldo(); 
                 
                 const card = elementoBotao.closest('.result-card-square');
