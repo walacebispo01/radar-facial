@@ -234,6 +234,7 @@
             animation: radarPulse 1.2s ease-in-out infinite alternate;
         }
 
+        /* Correção perfeita do container e centralização da imagem dentro do círculo */
         .interactive-preview-container {
             position: absolute;
             top: 0; left: 0;
@@ -242,13 +243,20 @@
             overflow: hidden;
             display: none;
             touch-action: none;
+            z-index: 5;
         }
 
         .interactive-preview-container img {
             position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             cursor: grab;
             user-select: none;
             max-width: none;
+            min-width: 100%;
+            min-height: 100%;
+            object-fit: cover;
         }
         
         .interactive-preview-container img:active {
@@ -257,14 +265,14 @@
 
         .circle-zoom-controls {
             position: absolute;
-            bottom: -40px;
+            bottom: -45px;
             left: 50%;
             transform: translateX(-50%);
             display: none;
-            gap: 8px;
+            gap: 10px;
             z-index: 25;
             background: rgba(15, 23, 42, 0.95);
-            padding: 6px 14px;
+            padding: 6px 16px;
             border-radius: 20px;
             border: 1px solid rgba(245, 158, 11, 0.4);
             backdrop-filter: blur(8px);
@@ -275,9 +283,9 @@
             background: rgba(255,255,255,0.05);
             border: 1px solid rgba(245, 158, 11, 0.2);
             color: var(--gold);
-            font-size: 0.85rem;
-            width: 28px;
-            height: 28px;
+            font-size: 0.9rem;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
             cursor: pointer;
             display: flex;
@@ -806,7 +814,7 @@
                     <i class="fa-solid fa-coins"></i> Saldo: <span id="userCreditsCount">0</span> pesquisas
                 </div>
                 
-                <!-- Botão e Identificação Google Login com o ID real inserido -->
+                <!-- Botão e Identificação Google Login -->
                 <div id="googleLoginWrapper">
                     <div id="g_id_onload"
                          data-client_id="463131098345-iead7l2q9h6fgi6c36eq94ou04kmfbj3.apps.googleusercontent.com"
@@ -841,7 +849,6 @@
                     <div class="icon-item"><i class="fa-brands fa-facebook-f"></i></div>
                 </div>
 
-                <!-- Input ajustado sem o capture para permitir arquivo ou galeria livre -->
                 <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="carregarFotoDireta(event)">
 
                 <div class="upload-center" id="uploadBtn" onclick="document.getElementById('imageInput').click()">
@@ -861,7 +868,6 @@
                         <div id="meshDotsContainer"></div>
                     </div>
 
-                    <!-- Container interativo dentro do círculo -->
                     <div class="interactive-preview-container" id="interactiveContainer">
                         <img id="draggableThumb" src="" alt="Alvo Biométrico">
                     </div>
@@ -872,7 +878,6 @@
                     </div>
                 </div>
 
-                <!-- Botões de zoom rápidos abaixo do círculo -->
                 <div class="circle-zoom-controls" id="circleZoomControls">
                     <button onclick="event.stopPropagation(); zoomCircleImg(0.1)" title="Aumentar Zoom"><i class="fa-solid fa-plus"></i></button>
                     <button onclick="event.stopPropagation(); zoomCircleImg(-0.1)" title="Diminuir Zoom"><i class="fa-solid fa-minus"></i></button>
@@ -1119,14 +1124,14 @@
                     startX = e.touches[0].clientX - imgX;
                     startY = e.touches[0].clientY - imgY;
                 }
-            });
+            }, { passive: true });
 
             window.addEventListener('touchmove', (e) => {
                 if (!isDragging || e.touches.length !== 1) return;
                 imgX = e.touches[0].clientX - startX;
                 imgY = e.touches[0].clientY - startY;
                 atualizarTransformacaoImagem();
-            });
+            }, { passive: true });
 
             window.addEventListener('touchend', () => {
                 isDragging = false;
@@ -1135,13 +1140,13 @@
 
         function atualizarTransformacaoImagem() {
             const thumb = document.getElementById('draggableThumb');
-            thumb.style.transform = `translate(${imgX}px, ${imgY}px) scale(${currentScale})`;
+            thumb.style.transform = `translate(calc(-50% + ${imgX}px), calc(-50% + ${imgY}px)) scale(${currentScale})`;
         }
 
         function zoomCircleImg(delta) {
             currentScale += delta;
-            if (currentScale < 0.5) currentScale = 0.5;
-            if (currentScale > 4) currentScale = 4;
+            if (currentScale < 0.3) currentScale = 0.3;
+            if (currentScale > 5) currentScale = 5;
             atualizarTransformacaoImagem();
         }
 
@@ -1200,10 +1205,14 @@
                 return;
             }
 
-            // SEGURANÇA DE CRÉDITOS: Obriga o login do Google antes de iniciar a busca
+            // SEGURANÇA DE CRÉDITOS: Se não estiver logado, guia suavemente para o topo onde está o login do Google sem alertas chatos
             if (!usuarioEmail) {
-                alert('⚠️ Atenção: Por favor, faça login com sua conta do Google no topo da página antes de prosseguir. Assim seus créditos e sua foto não serão perdidos!');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
+                // Tenta disparar o clique no botão do Google automaticamente se disponível
+                const googleBtn = document.querySelector('.g_id_signin iframe');
+                if(googleBtn) {
+                    googleBtn.focus();
+                }
                 return;
             }
 
@@ -1348,7 +1357,6 @@
 
         function clicarDesbloquearResultado(cardIndex) {
             if (!usuarioEmail) {
-                alert('Por favor, faça login com sua conta Google acima para salvar e gerenciar seus créditos.');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 return;
             }
@@ -1473,7 +1481,7 @@
 
         async function abrirModalPix(nomePacote, valor, qtdCreditos) {
             if (!usuarioEmail) {
-                alert('Faça login com o Google antes de prosseguir com o pagamento.');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
                 fecharModalPlanos();
                 return;
             }
