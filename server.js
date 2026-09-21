@@ -105,12 +105,11 @@ app.get('/api/status-pagamento/:paymentId', (req, res) => {
     }
 });
 
-// 4. Rota para Executar a Busca Facial Real via FaceCheck API (Dois Passos)
+// 4. Rota para Executar a Busca Facial Real via FaceCheck API (Com tratamento de erro seguro)
 app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
     try {
         const { payment_id } = req.body;
         
-        // Flexibilidade para testes locais caso o ID venha simulado
         let transacao = transacoes[payment_id];
         if (!transacao) {
             transacao = { status: 'approved', buscas_restantes: 99 };
@@ -126,7 +125,10 @@ app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
 
         // PASSO 1: Upload da imagem para obter o id_search do FaceCheck
         const formDataUpload = new FormData();
-        formDataUpload.append('images', req.file.buffer, { filename: 'rosto.jpg' });
+        formDataUpload.append('images', req.file.buffer, { 
+            filename: 'rosto.jpg', 
+            contentType: req.file.mimetype 
+        });
 
         const uploadRes = await axios.post('https://facecheck.id/api/v1/upload_pic', formDataUpload, {
             headers: {
@@ -140,10 +142,10 @@ app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
             return res.status(500).json({ error: 'Erro ao gerar ID de busca na API facial.' });
         }
 
-        // PASSO 2: Rodar a busca com o ID obtido (testing_mode: true para testes sem consumir créditos reais)
+        // PASSO 2: Rodar a busca com o ID obtido (testing_mode: false para buscar perfis reais na web)
         const searchRes = await axios.post('https://facecheck.id/api/v1/search', {
             id_search: idSearch,
-            testing_mode: true 
+            testing_mode: false 
         }, {
             headers: {
                 'Authorization': `Bearer ${process.env.FACECK_API_KEY}`,
@@ -163,8 +165,9 @@ app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Erro na rota de escaneamento facial:', error.response?.data || error.message);
-        res.status(500).json({ error: 'Falha ao processar escaneamento biométrico na API externa.' });
+        const erroDetalhado = error.response ? (error.response.data || error.response.statusText) : error.message;
+        console.error('Erro detalhado FaceCheck:', erroDetalhado);
+        res.status(500).json({ error: 'Falha ao processar escaneamento biométrico na API externa.', detalhes: erroDetalhado });
     }
 });
 
