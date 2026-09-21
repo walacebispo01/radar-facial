@@ -10,9 +10,8 @@
     <style>
         :root {
             --bg-color: #030712;
-            --card-bg: rgba(15, 23, 42, 0.75);
-            --card-border: rgba(245, 158, 11, 0.25);
-            --accent: #00f2fe;
+            --card-bg: #0f172a;
+            --card-border: rgba(255, 255, 255, 0.08);
             --text: #f9fafb;
             --text-dim: #9ca3af;
             --gold: #f59e0b;
@@ -45,7 +44,6 @@
             user-select: none;
         }
 
-        /* MODO FOCO / CARREGAMENTO: Borra o fundo e destaca o centro */
         body.focus-mode header,
         body.focus-mode .hero h1,
         body.focus-mode .hero p,
@@ -105,9 +103,7 @@
             transition: opacity 0.2s;
         }
 
-        .logo:hover {
-            opacity: 0.85;
-        }
+        .logo:hover { opacity: 0.85; }
 
         .logo-icon {
             width: 44px;
@@ -238,7 +234,6 @@
             transition: all 0.4s ease;
         }
 
-        /* LOGO E NOME DO SITE FLUTUANTE NO CENTRO DURANTE A VARREDURA (CLICÁVEL) */
         .scan-brand-header {
             position: absolute;
             top: 25px;
@@ -293,7 +288,7 @@
         }
 
         .orbit-ring.scanning {
-            animation: spinScan 6s ease-in-out infinite !important;
+            animation: spinScan 4s ease-in-out infinite !important;
             border-color: var(--gold) !important;
             box-shadow: 0 0 35px var(--gold-glow);
         }
@@ -319,7 +314,7 @@
         }
 
         .upload-center.pulse-scan {
-            animation: radarPulse 1.2s ease-in-out infinite alternate;
+            animation: radarPulse 1s ease-in-out infinite alternate;
         }
 
         .interactive-preview-container {
@@ -343,9 +338,7 @@
             max-width: none;
         }
         
-        .interactive-preview-container img:active {
-            cursor: grabbing;
-        }
+        .interactive-preview-container img:active { cursor: grabbing; }
 
         .zoom-hint {
             position: absolute;
@@ -369,20 +362,18 @@
 
         .scanner-laser {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 4px;
+            top: 0; left: 0;
+            width: 100%; height: 4px;
             background: #00f2fe;
             box-shadow: 0 0 15px #00f2fe, 0 0 25px #00f2fe;
             display: none;
             z-index: 15;
-            animation: faceLaserScan 3s ease-in-out infinite alternate;
+            animation: faceLaserScan 1.2s ease-in-out infinite alternate;
         }
 
         @keyframes faceLaserScan {
-            0% { top: 15%; }
-            100% { top: 85%; }
+            0% { top: 10%; }
+            100% { top: 90%; }
         }
 
         .face-mesh-overlay {
@@ -396,11 +387,10 @@
 
         .mesh-dot {
             position: absolute;
-            width: 4px;
-            height: 4px;
+            width: 4px; height: 4px;
             background: rgba(255, 255, 255, 0.25);
             border-radius: 50%;
-            transition: all 0.3s ease;
+            transition: all 0.15s ease;
         }
 
         .mesh-dot.active {
@@ -420,7 +410,7 @@
             stroke: rgba(0, 242, 254, 0.1);
             stroke-width: 0.8;
             stroke-dasharray: 2, 2;
-            transition: stroke 0.3s ease;
+            transition: stroke 0.15s ease;
         }
 
         .mesh-line.active {
@@ -450,8 +440,7 @@
 
         .icon-item {
             position: absolute;
-            width: 52px;
-            height: 52px;
+            width: 52px; height: 52px;
             border-radius: 50%;
             background: #0f172a;
             border: 1.5px solid rgba(255,255,255,0.1);
@@ -464,9 +453,7 @@
             transition: all 0.3s ease;
         }
 
-        .orbit-ring.scanning .icon-item {
-            animation: counter-spinScan 6s ease-in-out infinite !important;
-        }
+        .orbit-ring.scanning .icon-item { animation: counter-spinScan 4s ease-in-out infinite !important; }
 
         .icon-item.active-scan {
             transform: scale(1.35) !important;
@@ -485,27 +472,10 @@
         .icon-item:nth-child(7) { top: calc(50% - 26px); left: -26px; color: #06b6d4; }
         .icon-item:nth-child(8) { top: 25px; left: 10px; color: #3b82f6; }
 
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-
-        @keyframes counter-spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(-360deg); }
-        }
-
-        @keyframes spinScan {
-            0% { transform: rotate(0deg); }
-            50% { transform: rotate(180deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        @keyframes counter-spinScan {
-            0% { transform: rotate(0deg); }
-            50% { transform: rotate(-180deg); }
-            100% { transform: rotate(-360deg); }
-        }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes counter-spin { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+        @keyframes spinScan { 0% { transform: rotate(0deg); } 50% { transform: rotate(180deg); } 100% { transform: rotate(360deg); } }
+        @keyframes counter-spinScan { 0% { transform: rotate(0deg); } 50% { transform: rotate(-180deg); } 100% { transform: rotate(-360deg); } }
 
         @keyframes radarPulse {
             from { box-shadow: 0 0 20px var(--gold-glow); border-color: var(--gold); }
@@ -576,43 +546,96 @@
             height: 100%;
             background: var(--gold-gradient);
             border-radius: 100px;
-            transition: width 0.1s linear;
+            transition: width 0.05s linear;
         }
 
+        /* ESTILO DOS RESULTADOS INSPIRADO NO LAYOUT DE REFERÊNCIA */
         .results-section {
             display: none;
             width: 100%;
-            max-width: 600px;
+            max-width: 580px;
             margin-top: 30px;
             text-align: left;
             position: relative;
+            padding: 0 15px;
         }
 
-        .results-header {
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid rgba(16, 185, 129, 0.3);
-            color: #34d399;
-            padding: 14px 20px;
-            border-radius: 16px;
-            font-weight: 700;
-            font-size: 0.9rem;
-            margin-bottom: 20px;
+        .results-header-title {
+            font-size: 1.6rem;
+            font-weight: 800;
             text-align: center;
-            backdrop-filter: blur(8px);
+            margin-bottom: 24px;
+            letter-spacing: -0.5px;
+            background: var(--gold-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
-        .result-card {
+        /* Cartão de Resultado Estilo Sherlock */
+        .result-card-sherlock {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
-            border-radius: 20px;
-            padding: 16px;
+            border-radius: 24px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+            backdrop-filter: blur(12px);
+        }
+
+        /* Barra lateral colorida da rede social */
+        .social-gradient-bar {
+            width: 6px;
+            height: 100%;
+            position: absolute;
+            left: 0; top: 0;
+        }
+
+        .result-content-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 16px 20px 16px 24px;
+            gap: 15px;
+        }
+
+        .result-left-info {
             display: flex;
             align-items: center;
             gap: 16px;
-            margin-bottom: 14px;
-            backdrop-filter: blur(12px);
+        }
+
+        .avatar-match-wrapper {
             position: relative;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            width: 75px;
+            height: 75px;
+            flex-shrink: 0;
+        }
+
+        .match-badge-tag {
+            position: absolute;
+            top: -6px;
+            right: -8px;
+            background: #10b981;
+            color: #fff;
+            font-size: 0.68rem;
+            font-weight: 900;
+            padding: 2px 7px;
+            border-radius: 20px;
+            box-shadow: 0 2px 8px rgba(16,185,129,0.5);
+            z-index: 5;
+            white-space: nowrap;
+        }
+
+        .result-avatar-img {
+            width: 75px;
+            height: 75px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(255,255,255,0.15);
         }
 
         .blur-target {
@@ -622,53 +645,34 @@
             transition: filter 0.5s ease;
         }
 
-        .result-avatar {
-            width: 56px;
-            height: 56px;
-            border-radius: 16px;
-            background: #1f2937;
-            object-fit: cover;
-            flex-shrink: 0;
+        .result-text-details {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
         }
 
-        .social-badge-overlay {
-            position: absolute;
-            bottom: 12px;
-            left: 52px;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            background: #0f172a;
-            border: 1.5px solid rgba(255, 255, 255, 0.2);
+        .network-label-row {
             display: flex;
             align-items: center;
-            justify-content: center;
-            font-size: 0.75rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.8);
-            z-index: 2;
-        }
-
-        .result-info { flex: 1; }
-        .result-info h4 { margin: 0 0 4px 0; font-size: 1rem; color: #fff; }
-        
-        .social-tag-title {
-            display: inline-flex;
-            align-items: center;
             gap: 6px;
-            font-size: 0.85rem;
-            font-weight: 700;
-            margin-bottom: 3px;
+            font-size: 0.9rem;
+            font-weight: 800;
         }
 
-        .result-info p { margin: 0; font-size: 0.8rem; color: var(--text-dim); }
+        .username-blur-text {
+            font-size: 0.95rem;
+            color: #fff;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
 
-        .btn-card-unlock {
+        .btn-unlock-sherlock {
             background: var(--gold-gradient);
             color: #000;
             border: none;
             padding: 10px 18px;
-            font-size: 0.85rem;
-            font-weight: 800;
+            font-size: 0.78rem;
+            font-weight: 900;
             border-radius: 100px;
             cursor: pointer;
             display: flex;
@@ -680,7 +684,7 @@
             white-space: nowrap;
         }
 
-        .btn-card-unlock:hover {
+        .btn-unlock-sherlock:hover {
             transform: scale(1.05);
             box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
         }
@@ -733,25 +737,9 @@
             text-transform: uppercase;
         }
 
-        .plan-title {
-            font-size: 0.95rem;
-            font-weight: 800;
-            color: #fff;
-            margin-bottom: 1px;
-        }
-
-        .plan-desc {
-            font-size: 0.72rem;
-            color: var(--gold);
-            font-weight: 700;
-        }
-
-        .plan-price {
-            font-size: 1.15rem;
-            font-weight: 900;
-            color: var(--gold);
-            white-space: nowrap;
-        }
+        .plan-title { font-size: 0.95rem; font-weight: 800; color: #fff; margin-bottom: 1px; }
+        .plan-desc { font-size: 0.72rem; color: var(--gold); font-weight: 700; }
+        .plan-price { font-size: 1.15rem; font-weight: 900; color: var(--gold); white-space: nowrap; }
 
         .stats-container {
             display: flex;
@@ -793,8 +781,7 @@
 
         .modal-close-x {
             position: absolute;
-            top: 18px;
-            right: 18px;
+            top: 18px; right: 18px;
             background: transparent;
             border: none;
             color: var(--text-dim);
@@ -831,8 +818,7 @@
         }
 
         .qr-box {
-            width: 190px;
-            height: 190px;
+            width: 190px; height: 190px;
             margin: 14px auto;
             background: #fff;
             padding: 10px;
@@ -870,8 +856,7 @@
 
         .social-proof-toast {
             position: fixed;
-            bottom: 24px;
-            left: 24px;
+            bottom: 24px; left: 24px;
             background: rgba(15, 23, 42, 0.95);
             border: 1px solid var(--gold);
             border-radius: 14px;
@@ -897,7 +882,6 @@
 
     <div class="main-content-wrapper" id="mainContent">
         <header>
-            <!-- LOGOTIPO CLICÁVEL NO CABEÇALHO -->
             <a href="#" class="logo" onclick="voltarParaInicio(event)">
                 <div class="logo-icon">
                     <i class="fa-solid fa-fingerprint"></i>
@@ -931,7 +915,6 @@
         </header>
 
         <main class="hero" id="heroSection">
-            <!-- LOGOTIPO FLUTUANTE CLICÁVEL DURANTE O CARREGAMENTO -->
             <a href="#" class="scan-brand-header" id="scanBrandHeader" onclick="voltarParaInicio(event)">
                 <div class="logo-icon-mini">
                     <i class="fa-solid fa-fingerprint"></i>
@@ -1011,10 +994,9 @@
             </div>
         </div>
 
+        <!-- SEÇÃO DE RESULTADOS ESTILO SHERLOCK (BORRADOS ANTES DO PAGAMENTO) -->
         <div class="results-section" id="resultsSection">
-            <div class="results-header" id="resultsCountHeader">
-                <i class="fa-solid fa-circle-check"></i> 4 CORRESPONDÊNCIAS DE ALTA PRECISÃO ENCONTRADAS!
-            </div>
+            <h2 class="results-header-title">find anyone's social media</h2>
             <div id="resultsListContainer"></div>
         </div>
 
@@ -1155,12 +1137,12 @@
         let initialPinchDistance = null;
 
         const perfisDatabaseFalsos = [
-            { rede: 'Instagram', icon: 'fa-instagram', color: '#e1306c', usernames: ['@marcelo_sp92', '@carol.vlog', '@lucas_dev_br', '@vanessa_alves'] },
-            { rede: 'Facebook', icon: 'fa-facebook-f', color: '#1877f2', usernames: ['@marcos.silva.oficial', '@alberto_sampaio_br'] },
-            { rede: 'YouTube', icon: 'fa-youtube', color: '#ff0000', usernames: ['@CanalOficial_SP', '@VlogDeHoje'] },
-            { rede: 'TikTok', icon: 'fa-tiktok', color: '#00f2fe', usernames: ['@alvo_digital_oficial', '@vlog_da_semana', '@clips_sp_32'] },
-            { rede: 'LinkedIn', icon: 'fa-linkedin-in', color: '#0077b5', usernames: ['@perfil_profissional_sp', '@eng_marcos_paulo'] },
-            { rede: 'Pinterest', icon: 'fa-pinterest-p', color: '#e60023', usernames: ['@inspira_design', '@board_sp'] }
+            { rede: 'Instagram', icon: 'fa-instagram', gradient: 'linear-gradient(to bottom, #833ab4, #fd1d1d, #fcb045)', usernames: ['@marcelo_sp92', '@carol.vlog', '@lucas_dev_br', '@vanessa_alves'] },
+            { rede: 'Telegram', icon: 'fa-telegram', gradient: 'linear-gradient(to bottom, #0088cc, #229ed9)', usernames: ['@marcos_silva_oficial', '@alberto_sampaio_br'] },
+            { rede: 'YouTube', icon: 'fa-youtube', gradient: 'linear-gradient(to bottom, #ff0000, #cc0000)', usernames: ['@CanalOficial_SP', '@VlogDeHoje'] },
+            { rede: 'TikTok', icon: 'fa-tiktok', gradient: 'linear-gradient(to bottom, #25f4ee, #fe2f55)', usernames: ['@alvo_digital_oficial', '@vlog_da_semana', '@clips_sp_32'] },
+            { rede: 'LinkedIn', icon: 'fa-linkedin-in', gradient: 'linear-gradient(to bottom, #0077b5, #004182)', usernames: ['@perfil_profissional_sp', '@eng_marcos_paulo'] },
+            { rede: 'Pinterest', icon: 'fa-pinterest-p', gradient: 'linear-gradient(to bottom, #e60023, #ad081b)', usernames: ['@inspira_design', '@board_sp'] }
         ];
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -1173,17 +1155,14 @@
 
         function voltarParaInicio(e) {
             e.preventDefault();
-            // Para qualquer animação ativa e limpa o estado de varredura se estiver rodando
             if (scanHighlightInterval) clearInterval(scanHighlightInterval);
             
-            // Restaura a tela inicial padrão
             document.body.classList.remove('focus-mode');
             document.getElementById('scanLoader').style.display = 'none';
             document.getElementById('resultsSection').style.display = 'none';
             document.getElementById('scanBrandHeader').style.display = 'none';
             document.getElementById('heroSection').style.display = 'block';
             
-            // Reseta a foto carregada para voltar ao estado inicial
             cancelarModoFoco();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
@@ -1195,18 +1174,9 @@
                     const modalPlanos = document.getElementById('modalPlanos');
                     const modalPix = document.getElementById('modalPix');
 
-                    if (modalPix.style.display === 'flex') {
-                        voltarParaPlanos();
-                        return;
-                    }
-                    if (modalPlanos.style.display === 'flex') {
-                        fecharModalPlanos();
-                        return;
-                    }
-                    if (modalLogin.style.display === 'flex') {
-                        fecharModalLogin();
-                        return;
-                    }
+                    if (modalPix.style.display === 'flex') { voltarParaPlanos(); return; }
+                    if (modalPlanos.style.display === 'flex') { fecharModalPlanos(); return; }
+                    if (modalLogin.style.display === 'flex') { fecharModalLogin(); return; }
 
                     if (document.body.classList.contains('focus-mode') && document.getElementById('scanLoader').style.display !== 'flex') {
                         cancelarModoFoco();
@@ -1233,9 +1203,7 @@
                     container,
                     { theme: "filled_black", size: "large", width: "300", text: "continue_with", shape: "pill" }
                 );
-            } catch (e) {
-                console.error("Erro ao renderizar botão Google:", e);
-            }
+            } catch (e) { console.error("Erro ao renderizar botão Google:", e); }
         }
 
         function handleGoogleLogin(response) {
@@ -1273,9 +1241,7 @@
                     saldoCreditos = data.creditos || 0;
                     atualizarInterfaceSaldo();
                 }
-            } catch (e) {
-                console.error("Erro ao sincronizar user:", e);
-            }
+            } catch (e) { console.error("Erro ao sincronizar user:", e); }
         }
 
         function dispararSeletorArquivo(event) {
@@ -1300,8 +1266,7 @@
                         const scaleY = containerSize / imgH;
                         currentScale = Math.max(scaleX, scaleY);
 
-                        imgX = 0;
-                        imgY = 0;
+                        imgX = 0; imgY = 0;
                         atualizarTransformacaoImagem();
                         
                         document.getElementById('interactiveContainer').style.display = 'block';
@@ -1332,18 +1297,13 @@
                 atualizarTransformacaoImagem();
             });
 
-            window.addEventListener('mouseup', () => {
-                isDragging = false;
-            });
+            window.addEventListener('mouseup', () => { isDragging = false; });
 
             container.addEventListener('wheel', (e) => {
                 e.preventDefault();
                 const zoomIntensity = 0.15;
-                if (e.deltaY < 0) {
-                    currentScale += zoomIntensity;
-                } else {
-                    currentScale -= zoomIntensity;
-                }
+                if (e.deltaY < 0) currentScale += zoomIntensity;
+                else currentScale -= zoomIntensity;
                 if (currentScale < 0.1) currentScale = 0.1;
                 if (currentScale > 5) currentScale = 5;
                 atualizarTransformacaoImagem();
@@ -1383,12 +1343,8 @@
             }, { passive: true });
 
             window.addEventListener('touchend', (e) => {
-                if (e.touches.length < 2) {
-                    initialPinchDistance = null;
-                }
-                if (e.touches.length === 0) {
-                    isDragging = false;
-                }
+                if (e.touches.length < 2) initialPinchDistance = null;
+                if (e.touches.length === 0) isDragging = false;
             });
         }
 
@@ -1402,12 +1358,10 @@
             if (!thumb.src || thumb.src === window.location.href) return null;
 
             const canvas = document.createElement('canvas');
-            canvas.width = 400;
-            canvas.height = 400;
+            canvas.width = 400; canvas.height = 400;
             const ctx = canvas.getContext('2d');
 
-            const containerWidth = 220; 
-            const containerHeight = 220;
+            const containerWidth = 220; const containerHeight = 220;
             const scaleFactor = 400 / containerWidth;
 
             ctx.clearRect(0, 0, 400, 400);
@@ -1432,7 +1386,6 @@
             return canvas.toDataURL('image/jpeg', 0.9);
         }
 
-        /* Pontos faciais anatômicos detalhados simulando contorno real de um rosto */
         const pontosAnatomicosRosto = [
             {id: 0, top: 22, left: 50}, {id: 1, top: 25, left: 40}, {id: 2, top: 25, left: 60},
             {id: 3, top: 34, left: 33}, {id: 4, top: 34, left: 67},
@@ -1453,7 +1406,6 @@
         function inicializarPontosMeshFixo() {
             const container = document.getElementById('meshDotsContainer');
             container.innerHTML = '';
-            
             pontosAnatomicosRosto.forEach((p) => {
                 const dot = document.createElement('div');
                 dot.className = 'mesh-dot';
@@ -1465,16 +1417,13 @@
         }
 
         function atualizarVarreduraProgressiva(progressoPercent) {
-            const alturaLaserTop = 15 + (progressoPercent * 0.7);
+            const alturaLaserTop = 10 + (progressoPercent * 0.9);
 
             pontosAnatomicosRosto.forEach((p) => {
                 const dot = document.getElementById('mdot-' + p.id);
                 if (dot) {
-                    if (p.top <= alturaLaserTop) {
-                        dot.classList.add('active');
-                    } else {
-                        dot.classList.remove('active');
-                    }
+                    if (p.top <= alturaLaserTop) dot.classList.add('active');
+                    else dot.classList.remove('active');
                 }
             });
 
@@ -1491,11 +1440,8 @@
                         lineEl.setAttribute('x2', (p2.left / 100) * containerSize);
                         lineEl.setAttribute('y2', (p2.top / 100) * containerSize);
 
-                        if (p1.top <= alturaLaserTop && p2.top <= alturaLaserTop) {
-                            lineEl.classList.add('active');
-                        } else {
-                            lineEl.classList.remove('active');
-                        }
+                        if (p1.top <= alturaLaserTop && p2.top <= alturaLaserTop) lineEl.classList.add('active');
+                        else lineEl.classList.remove('active');
                     }
                 }
             });
@@ -1555,15 +1501,14 @@
 
             inicializarPontosMeshFixo();
 
-            scanHighlightInterval = setInterval(animarDestaqueIcones, 400);
+            scanHighlightInterval = setInterval(animarDestaqueIcones, 250);
 
             let fill = document.getElementById('progressFill');
             let loaderText = document.getElementById('loaderText');
             let width = 0;
 
-            const tempoTotalSegundos = Math.floor(Math.random() * (25 - 15 + 1)) + 15; 
-            const tempoTotalMs = tempoTotalSegundos * 1000;
-            const intervaloTick = 100;
+            const tempoTotalMs = 5000; 
+            const intervaloTick = 50;
             const incrementoPorTick = (100 / (tempoTotalMs / intervaloTick));
 
             let interval = setInterval(() => {
@@ -1581,7 +1526,7 @@
                     document.body.classList.remove('focus-mode');
                     document.getElementById('heroSection').style.display = 'none';
 
-                    exibirResultadosFalsosBorrados();
+                    exibirResultadosSherlockBorrados();
                 } else {
                     width += incrementoPorTick;
                     if (width > 100) width = 100;
@@ -1593,13 +1538,12 @@
             }, intervaloTick); 
         }
 
-        function exibirResultadosFalsosBorrados() {
+        function exibirResultadosSherlockBorrados() {
             document.getElementById('scanLoader').style.display = 'none';
             const imgFinal = capturarImagemFinalCirculo();
 
             const container = document.getElementById('resultsListContainer');
             container.innerHTML = '';
-            document.getElementById('resultsCountHeader').innerHTML = `<i class="fa-solid fa-circle-check"></i> 4 CORRESPONDÊNCIAS DE ALTA PRECISÃO ENCONTRADAS!`;
             document.getElementById('resultsSection').style.display = 'block';
             document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
 
@@ -1611,23 +1555,25 @@
                 const precisao = (Math.random() * (99.1 - 89.5) + 89.5).toFixed(1);
 
                 const cardHtml = `
-                    <div class="result-card" id="card-falso-${i}">
-                        <div style="position: relative;">
-                            <img class="result-avatar card-avatar blur-target" src="${imgFinal}" alt="Perfil">
-                            <div class="social-badge-overlay">
-                                <i class="fa-brands ${redeData.icon}" style="color: ${redeData.color};"></i>
+                    <div class="result-card-sherlock" id="card-sherlock-${i}">
+                        <div class="social-gradient-bar" style="background: ${redeData.gradient};"></div>
+                        <div class="result-content-inner">
+                            <div class="result-left-info">
+                                <div class="avatar-match-wrapper">
+                                    <span class="match-badge-tag">${precisao}%</span>
+                                    <img class="result-avatar-img blur-target" src="${imgFinal}" alt="Alvo">
+                                </div>
+                                <div class="result-text-details">
+                                    <div class="network-label-row" style="color: #fff;">
+                                        <i class="fa-brands ${redeData.icon}"></i> ${redeData.rede}
+                                    </div>
+                                    <div class="username-blur-text blur-target">${username}</div>
+                                </div>
                             </div>
+                            <button class="btn-unlock-sherlock" onclick="clicarDesbloquearResultado(${i})">
+                                <i class="fa-solid fa-lock"></i> Ver Resultado
+                            </button>
                         </div>
-                        <div class="result-info">
-                            <div class="social-tag-title" style="color: ${redeData.color};">
-                                <i class="fa-brands ${redeData.icon}"></i> ${redeData.rede}
-                            </div>
-                            <h4 class="card-username blur-target">${username}</h4>
-                            <p>Correspondência Biométrica: <strong>${precisao}%</strong></p>
-                        </div>
-                        <button class="btn-card-unlock" onclick="clicarDesbloquearResultado(${i})">
-                            <i class="fa-solid fa-lock"></i> Ver Resultado
-                        </button>
                     </div>
                 `;
                 container.innerHTML += cardHtml;
@@ -1694,9 +1640,7 @@
             const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
             const ab = new ArrayBuffer(byteString.length);
             const ia = new Uint8Array(ab);
-            for (let i = 0; i < byteString.length; i++) {
-                ia[i] = byteString.charCodeAt(i);
-            }
+            for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
             return new Blob([ab], { type: mimeString });
         }
 
@@ -1704,34 +1648,35 @@
             const imgFinal = capturarImagemFinalCirculo();
             const container = document.getElementById('resultsListContainer');
             container.innerHTML = '';
-            document.getElementById('resultsCountHeader').innerHTML = `<i class="fa-solid fa-circle-check"></i> ${itens.length} PERFIS REAIS ENCONTRADOS VIA API!`;
             document.getElementById('resultsSection').style.display = 'block';
             document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
 
-            itens.forEach((item, i) => {
+            itens.forEach((item) => {
                 const precisao = item.score ? (item.score * 100).toFixed(1) : '98.5';
                 const urlPerfil = item.url || '#';
                 const tituloPerfil = item.title || 'Perfil Web Verificado';
                 const previewImg = item.image || imgFinal;
 
                 const cardHtml = `
-                    <div class="result-card">
-                        <div style="position: relative;">
-                            <img class="result-avatar card-avatar" src="${previewImg}" alt="Perfil Real">
-                            <div class="social-badge-overlay">
-                                <i class="fa-solid fa-globe" style="color: var(--gold);"></i>
+                    <div class="result-card-sherlock">
+                        <div class="social-gradient-bar" style="background: linear-gradient(to bottom, #10b981, #059669);"></div>
+                        <div class="result-content-inner">
+                            <div class="result-left-info">
+                                <div class="avatar-match-wrapper">
+                                    <span class="match-badge-tag">${precisao}%</span>
+                                    <img class="result-avatar-img" src="${previewImg}" alt="Perfil Real">
+                                </div>
+                                <div class="result-text-details">
+                                    <div class="network-label-row" style="color: #34d399;">
+                                        <i class="fa-solid fa-globe"></i> FaceCheck API
+                                    </div>
+                                    <div class="username-blur-text">${tituloPerfil}</div>
+                                </div>
                             </div>
+                            <a href="${urlPerfil}" target="_blank" class="btn-unlock-sherlock" style="background: #10b981; color: #fff; text-decoration: none;">
+                                <i class="fa-solid fa-arrow-up-right-from-square"></i> Acessar
+                            </a>
                         </div>
-                        <div class="result-info">
-                            <div class="social-tag-title" style="color: var(--gold);">
-                                <i class="fa-solid fa-link"></i> FaceCheck API
-                            </div>
-                            <h4 class="card-username">${tituloPerfil}</h4>
-                            <p>Correspondência Biométrica: <strong>${precisao}%</strong></p>
-                        </div>
-                        <a href="${urlPerfil}" target="_blank" class="btn-card-unlock" style="background: #10b981; color: #fff; text-decoration: none;">
-                            <i class="fa-solid fa-arrow-up-right-from-square"></i> Acessar Perfil
-                        </a>
                     </div>
                 `;
                 container.innerHTML += cardHtml;
@@ -1778,23 +1723,16 @@
                 const response = await fetch('/api/criar-pix', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        valor: valor,
-                        plano: nomePacote,
-                        email: usuarioEmail,
-                        creditos: qtdCreditos
-                    })
+                    body: JSON.stringify({ valor: valor, plano: nomePacote, email: usuarioEmail, creditos: qtdCreditos })
                 });
 
                 const data = await response.json();
-
                 if (data.success && data.qr_code_base64) {
                     document.getElementById('qrCodeBox').innerHTML = `<img src="data:image/jpeg;base64,${data.qr_code_base64}" alt="QR Code PIX">`;
                     pixCopiaCola = data.qr_code;
                 } else {
                     document.getElementById('qrCodeBox').innerHTML = '<p style="font-size: 0.7rem; color: red; text-align:center;">Erro ao gerar QR Code.</p>';
                 }
-
             } catch (err) {
                 console.error(err);
                 document.getElementById('qrCodeBox').innerHTML = '<p style="font-size: 0.7rem; color: red; text-align:center;">Erro de conexão com o servidor.</p>';
@@ -1808,12 +1746,9 @@
             timerInterval = setInterval(() => {
                 minutes = parseInt(timer / 60, 10);
                 seconds = parseInt(timer % 60, 10);
-
                 minutes = minutes < 10 ? "0" + minutes : minutes;
                 seconds = seconds < 10 ? "0" + seconds : seconds;
-
                 display.textContent = minutes + ":" + seconds;
-
                 if (--timer < 0) {
                     clearInterval(timerInterval);
                     display.textContent = "EXPIRADO";
@@ -1845,9 +1780,7 @@
             userText.innerText = `Usuário em proximidades de ${cidade}`;
             toast.classList.add('show');
 
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 4500);
+            setTimeout(() => { toast.classList.remove('show'); }, 4500);
         }
 
         setTimeout(showSocialProof, 4000);
