@@ -1603,30 +1603,14 @@
             botaoElemento.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> DESBLOQUEANDO...';
 
             try {
-                // 1. Desconta o crédito primeiro no banco de dados local do servidor
-                const resDesconto = await fetch('/api/descontar-credito', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: usuarioEmail })
-                });
-
-                const dataDesconto = await resDesconto.json();
-
-                if (!resDesconto.ok || !dataDesconto.success) {
-                    botaoElemento.disabled = false;
-                    botaoElemento.innerHTML = '<i class="fa-solid fa-unlock-keyhole"></i> DESBLOQUEAR RESULTADOS';
-                    alert(dataDesconto.error || 'Créditos insuficientes ou erro ao descontar.');
-                    abrirModalPlanos();
-                    return;
-                }
-
-                if (dataDesconto.creditos !== undefined) {
-                    saldoCreditos = dataDesconto.creditos;
-                    atualizarInterfaceSaldo();
-                }
-
-                // 2. Envia a foto tratada para a rota do FaceCheck
+                // 1. Prepara a imagem e executa a busca real no FaceCheck.
+                // O crédito só será descontado depois que a busca terminar com sucesso.
                 const imgFinal = capturarImagemFinalCirculo();
+
+                if (!imgFinal) {
+                    throw new Error('Não foi possível preparar a imagem para a pesquisa.');
+                }
+
                 const blob = dataURItoBlob(imgFinal);
                 const formData = new FormData();
                 formData.append('imagem', blob, 'rosto.jpg');
@@ -1637,30 +1621,84 @@
                     body: formData
                 });
 
-                const data = await response.json();
+                let data = null;
 
-                if (data.buscas_restantes !== undefined) {
-                    saldoCreditos = data.buscas_restantes;
-                    atualizarInterfaceSaldo();
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    throw new Error(`O servidor retornou uma resposta inválida (HTTP ${response.status}).`);
                 }
 
                 if (!response.ok || !data.success) {
-                    alert(data.error || 'Erro ao processar a varredura no FaceCheck.');
+                    const detalhe = data?.detalhe ? `\n\nDetalhe: ${data.detalhe}` : '';
+                    const codigo = data?.codigo_facecheck ? `\nCódigo: ${data.codigo_facecheck}` : '';
+
+                    throw new Error(
+                        (data?.error || 'Erro ao processar a varredura no FaceCheck.') +
+                        codigo +
+                        detalhe
+                    );
+                }
+
+                // 2. Aceita tanto a resposta normalizada do server.js novo
+                // quanto formatos compatíveis da resposta do FaceCheck.
+                const listaPerfis =
+                    Array.isArray(data.items) ? data.items :
+                    Array.isArray(data.resultados?.output?.items) ? data.resultados.output.items :
+                    Array.isArray(data.resultados?.output) ? data.resultados.output :
+                    Array.isArray(data.resultados?.results) ? data.resultados.results :
+                    Array.isArray(data.perfis_encontrados) ? data.perfis_encontrados :
+                    [];
+
+                // 3. A busca foi concluída. Agora desconta 1 crédito.
+                const resDesconto = await fetch('/api/descontar-credito', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: usuarioEmail })
+                });
+
+                let dataDesconto = null;
+
+                try {
+                    dataDesconto = await resDesconto.json();
+                } catch (e) {
+                    throw new Error('A busca foi concluída, mas o servidor não conseguiu atualizar o saldo.');
+                }
+
+                if (!resDesconto.ok || !dataDesconto.success) {
                     botaoElemento.disabled = false;
                     botaoElemento.innerHTML = '<i class="fa-solid fa-unlock-keyhole"></i> DESBLOQUEAR RESULTADOS';
+
+                    alert(
+                        dataDesconto?.error ||
+                        'A busca foi concluída, mas não foi possível descontar o crédito.'
+                    );
+
+                    if (resDesconto.status === 403) {
+                        abrirModalPlanos();
+                    }
+
                     return;
                 }
 
-                // 3. Extrai os resultados retornados pela API do FaceCheck de forma robusta
-                const listaPerfis = data.resultados?.output || data.resultados?.results || data.resultados || data.perfis_encontrados || [];
-                
+                if (dataDesconto.creditos !== undefined) {
+                    saldoCreditos = Number(dataDesconto.creditos);
+                    atualizarInterfaceSaldo();
+                }
+
+                // 4. Exibe os resultados reais retornados pelo FaceCheck.
                 renderizarResultadosReaisAPI(listaPerfis);
 
             } catch (err) {
-                console.error('Erro na requisição:', err);
+                console.error('Erro na busca biométrica:', err);
+
                 botaoElemento.disabled = false;
                 botaoElemento.innerHTML = '<i class="fa-solid fa-unlock-keyhole"></i> DESBLOQUEAR RESULTADOS';
-                alert('Erro de conexão ao processar a busca biométrica.');
+
+                alert(
+                    err?.message ||
+                    'Erro de conexão ao processar a busca biométrica.'
+                );
             }
         }
 
@@ -1685,17 +1723,41 @@
             }
 
             perfis.forEach((item, index) => {
-                const precisao = item.score ? (item.score * 100).toFixed(1) : (item.similarity ? (item.similarity * 100).toFixed(1) : '95');
-                const urlPerfil = item.url || item.link || '#';
-                const tituloPerfil = item.title || item.site || 'Perfil Público Detectado';
-                const previewImg = item.image || item.thumbnail || imgOriginalEnviada;
+                const scoreBruto = Number(item.score ?? item.similarity ?? item.confidence);
+                const precisao = Number.isFinite(scoreBruto)
+                    ? (scoreBruto <= 1 ? scoreBruto * 100 : scoreBruto).toFixed(1)
+                    : '--';
+
+                const urlCandidato = item.url || item.link || item.page_url || '#';
+                let urlPerfil = '#';
+
+                try {
+                    const parsedUrl = new URL(urlCandidato, window.location.origin);
+                    if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
+                        urlPerfil = parsedUrl.href;
+                    }
+                } catch (e) {}
+
+                const tituloPerfil =
+                    item.title ||
+                    item.site ||
+                    item.domain ||
+                    item.source ||
+                    'Perfil Público Detectado';
+
+                const previewImg =
+                    item.image ||
+                    item.thumbnail ||
+                    item.image_url ||
+                    item.base64 ||
+                    imgOriginalEnviada;
                 const isFeatured = index === 0;
 
                 const cardHtml = `
                     <div class="result-card-square ${isFeatured ? 'featured' : ''}" style="${isFeatured ? 'border-color: var(--gold);' : ''}">
                         <div class="social-gradient-bar" style="background: var(--gold);"></div>
                         <div class="avatar-match-wrapper">
-                            <span class="match-badge-tag">${precisao}%</span>
+                            <span class="match-badge-tag">${precisao === "--" ? "Match" : precisao + "%"}</span>
                             <img class="result-avatar-img" src="${previewImg}" alt="Perfil">
                         </div>
                         <div class="result-text-details">
