@@ -153,31 +153,37 @@ app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
             }
         });
 
-        const idSearch = uploadRes.data.id_search;
+        const idSearch = uploadRes.data.id_search || uploadRes.data.id;
         if (!idSearch) {
-            return res.status(500).json({ error: 'Erro ao gerar ID de busca na API facial.' });
+            console.error('Resposta do upload FaceCheck:', uploadRes.data);
+            return res.status(500).json({ error: 'Erro ao gerar ID de busca na API facial.', detalhes: uploadRes.data });
         }
 
         // PASSO 2: Executa a varredura real na internet (testing_mode: false obrigatório)
         const searchRes = await axios.post('https://facecheck.id/api/v1/search', {
             id_search: idSearch,
+            specify_id: idSearch,
             testing_mode: false 
         }, {
             headers: {
                 'Authorization': `Bearer ${process.env.FACECHECK_API_KEY}`,
                 'Content-Type': 'application/json'
-            }
+            },
+            timeout: 30000 // Aguarda até 30 segundos pela resposta dos servidores
         });
 
         if (email && usuariosCreditos[email] !== undefined) {
             usuariosCreditos[email] -= 1;
         }
 
+        const dadosRetorno = searchRes.data;
+        const itensEncontrados = dadosRetorno.output?.items || dadosRetorno.items || dadosRetorno.output || [];
+
         res.json({
             sucesso: true,
             buscas_restantes: (email && usuariosCreditos[email] !== undefined) ? usuariosCreditos[email] : 9,
             mensagem: 'Escaneamento biométrico executado com sucesso.',
-            perfis_encontrados: searchRes.data.output?.items || []
+            perfis_encontrados: Array.isArray(itensEncontrados) ? itensEncontrados : []
         });
 
     } catch (error) {
