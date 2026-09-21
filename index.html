@@ -45,7 +45,7 @@
             user-select: none;
         }
 
-        /* MODO FOCO: Esconde os ícones e expande a área central ao carregar a foto */
+        /* MODO FOCO / CARREGAMENTO: Borra o fundo e destaca o centro */
         body.focus-mode header,
         body.focus-mode .hero h1,
         body.focus-mode .hero p,
@@ -58,24 +58,17 @@
             transition: all 0.4s ease;
         }
 
-        body.focus-mode .orbit-ring {
-            opacity: 0;
-            transform: scale(1.3);
-            pointer-events: none;
-            transition: all 0.4s ease;
-        }
-
         body.focus-mode .orbit-container {
-            width: 320px;
-            height: 320px;
-            transform: scale(1.2);
+            width: 340px;
+            height: 340px;
+            transform: scale(1.15);
             transition: transform 0.4s ease;
         }
 
         body.focus-mode .upload-center {
             width: 220px !important;
             height: 220px !important;
-            box-shadow: 0 0 50px rgba(245, 158, 11, 0.5), 0 25px 50px rgba(0,0,0,0.9);
+            box-shadow: 0 0 60px rgba(245, 158, 11, 0.6), 0 25px 50px rgba(0,0,0,0.9);
         }
 
         .main-content-wrapper {
@@ -337,9 +330,9 @@
         }
 
         @keyframes laserScan {
-            0% { top: 0%; opacity: 0.8; }
+            0% { top: 10%; opacity: 0.8; }
             50% { opacity: 1; }
-            100% { top: 95%; opacity: 0.8; }
+            100% { top: 90%; opacity: 0.8; }
         }
 
         .face-mesh-overlay {
@@ -358,7 +351,7 @@
             background: #ffffff;
             border-radius: 50%;
             box-shadow: 0 0 8px #ffffff, 0 0 12px #00f2fe;
-            transition: all 1.2s cubic-bezier(0.25, 1, 0.5, 1);
+            transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
         .face-mesh-svg {
@@ -369,10 +362,10 @@
         }
 
         .mesh-line {
-            stroke: rgba(255, 255, 255, 0.4);
-            stroke-width: 0.8;
+            stroke: rgba(0, 242, 254, 0.6);
+            stroke-width: 1;
             stroke-dasharray: 2, 2;
-            transition: all 1.2s cubic-bezier(0.25, 1, 0.5, 1);
+            transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
         .upload-placeholder-content {
@@ -410,7 +403,7 @@
             transition: all 0.3s ease;
         }
 
-        .orbit-ring.scanning {
+        .orbit-ring.scanning .icon-item {
             animation: counter-spinScan 6s ease-in-out infinite !important;
         }
 
@@ -455,7 +448,7 @@
 
         @keyframes radarPulse {
             from { box-shadow: 0 0 20px var(--gold-glow); border-color: var(--gold); }
-            to { box-shadow: 0 0 50px rgba(245, 158, 11, 0.8); border-color: #fff; }
+            to { box-shadow: 0 0 60px rgba(245, 158, 11, 0.9); border-color: #fff; }
         }
 
         .scan-action-btn {
@@ -503,6 +496,8 @@
             align-items: center;
             gap: 14px;
             margin-top: 20px;
+            position: relative;
+            z-index: 50;
         }
 
         .progress-bar-bg {
@@ -985,7 +980,6 @@
                 Precisamos da sua conta Google para obter o resultado da pesquisa.
             </p>
 
-            <!-- Botão do Google gerado dinamicamente dentro do modal -->
             <div id="googleLoginModalWrapper" style="display: flex; justify-content: center; margin-bottom: 16px; min-height: 40px;"></div>
 
             <div style="font-size: 0.72rem; color: var(--text-dim); display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 15px;">
@@ -1110,7 +1104,6 @@
         function configurarTeclaEsc() {
             window.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
-                    // 1. Se houver algum modal aberto, fecha ele
                     const modalLogin = document.getElementById('modalLoginObrigatorio');
                     const modalPlanos = document.getElementById('modalPlanos');
                     const modalPix = document.getElementById('modalPix');
@@ -1128,8 +1121,7 @@
                         return;
                     }
 
-                    // 2. Se estiver na tela com a foto carregada (modo foco), cancela e volta à home normal
-                    if (document.body.classList.contains('focus-mode')) {
+                    if (document.body.classList.contains('focus-mode') && document.getElementById('scanLoader').style.display !== 'flex') {
                         cancelarModoFoco();
                     }
                 }
@@ -1141,8 +1133,7 @@
             document.getElementById('zoomHint').style.display = 'none';
             document.getElementById('interactiveContainer').style.display = 'none';
             document.getElementById('uploadPlaceholder').style.display = 'flex';
-            document.getElementById('draggableThumb.src') = '';
-            // Reseta o input file para permitir selecionar a mesma foto novamente se quiser
+            document.getElementById('draggableThumb').src = '';
             document.getElementById('imageInput').value = '';
         }
 
@@ -1353,17 +1344,30 @@
             return canvas.toDataURL('image/jpeg', 0.9);
         }
 
-        function inicializarPontosMesh() {
+        /* Geração dos pontos em formato oval/contorno de rosto central */
+        function inicializarPontosMeshContorno() {
             const container = document.getElementById('meshDotsContainer');
             container.innerHTML = '';
-            for (let i = 0; i < 25; i++) {
+            
+            // Coordenadas aproximadas simulando o contorno de um rosto oval centralizado (numa área de 220x220px)
+            const contornoRosto = [
+                {top: 25, left: 50}, {top: 30, left: 40}, {top: 30, left: 60}, // Testa / Sobrancelhas
+                {top: 42, left: 35}, {top: 42, left: 50}, {top: 42, left: 65}, // Olhos / Nariz
+                {top: 55, left: 43}, {top: 55, left: 57},                      // Nariz baixo
+                {top: 68, left: 46}, {top: 68, left: 54},                      // Boca
+                {top: 80, left: 50},                                           // Queixo
+                {top: 35, left: 28}, {top: 52, left: 25}, {top: 70, left: 32}, // Bochecha Esquerda
+                {top: 35, left: 72}, {top: 52, left: 75}, {top: 70, left: 68}  // Bochecha Direita
+            ];
+
+            contornoRosto.forEach((pos, i) => {
                 const dot = document.createElement('div');
                 dot.className = 'mesh-dot';
                 dot.id = 'mdot-' + i;
-                dot.style.top = (Math.floor(Math.random() * 50) + 22) + '%';
-                dot.style.left = (Math.floor(Math.random() * 50) + 22) + '%';
+                dot.style.top = pos.top + '%';
+                dot.style.left = pos.left + '%';
                 container.appendChild(dot);
-            }
+            });
         }
 
         function clicarProcurar() {
@@ -1378,9 +1382,7 @@
                 return;
             }
 
-            document.body.classList.remove('focus-mode');
             document.getElementById('zoomHint').style.display = 'none';
-
             iniciarEscaneamentoSimulado();
         }
 
@@ -1402,36 +1404,48 @@
             icons[randIndex1].classList.add('active-scan');
         }
 
-        function moverPontosBiometricos() {
+        function moverPontosMeshContorno() {
             const containerSize = 220; 
-            const dotElements = [];
+            // Pontos base do contorno com leves variações orgânicas para simular varredura ao vivo
+            const basePontos = [
+                {t: 25, l: 50}, {t: 30, l: 40}, {t: 30, l: 60},
+                {t: 42, l: 35}, {t: 42, l: 50}, {t: 42, l: 65},
+                {t: 55, l: 43}, {t: 55, l: 57},
+                {t: 68, l: 46}, {t: 68, l: 54},
+                {t: 80, l: 50},
+                {t: 35, l: 28}, {t: 52, l: 25}, {t: 70, l: 32},
+                {t: 35, l: 72}, {t: 52, l: 75}, {t: 70, l: 68}
+            ];
 
-            for (let i = 0; i < 25; i++) {
+            const coordsAtuais = [];
+            basePontos.forEach((p, i) => {
                 const dot = document.getElementById('mdot-' + i);
                 if (dot) {
-                    const randomTop = Math.floor(Math.random() * 56) + 20; 
-                    const randomLeft = Math.floor(Math.random() * 56) + 20;
-                    dot.style.top = randomTop + '%';
-                    dot.style.left = randomLeft + '%';
+                    const varT = p.t + (Math.random() * 4 - 2);
+                    const varL = p.l + (Math.random() * 4 - 2);
+                    dot.style.top = varT + '%';
+                    dot.style.left = varL + '%';
 
-                    dotElements.push({
-                        x: (randomLeft / 100) * containerSize,
-                        y: (randomTop / 100) * containerSize
+                    coordsAtuais.push({
+                        x: (varL / 100) * containerSize,
+                        y: (varT / 100) * containerSize
                     });
                 }
-            }
+            });
 
-            for (let l = 0; l < 8; l++) {
-                const lineEl = document.getElementById('l' + l);
-                if (lineEl && dotElements.length > 0) {
-                    const p1 = dotElements[Math.floor(Math.random() * dotElements.length)];
-                    const p2 = dotElements[Math.floor(Math.random() * dotElements.length)];
+            // Conecta linhas do contorno facial simulando wireframe de IA
+            const ligacoes = [[0,1], [0,2], [1,3], [2,5], [3,11], [11,12], [12,10], [2,14], [14,15], [15,10], [3,4], [4,5], [6,7], [8,9], [6,8], [7,9], [4,6], [4,7]];
+            ligacoes.forEach((lig, lIdx) => {
+                const lineEl = document.getElementById('l' + (lIdx % 8));
+                if (lineEl && coordsAtuais[lig[0]] && coordsAtuais[lig[1]]) {
+                    const p1 = coordsAtuais[lig[0]];
+                    const p2 = coordsAtuais[lig[1]];
                     lineEl.setAttribute('x1', p1.x);
                     lineEl.setAttribute('y1', p1.y);
                     lineEl.setAttribute('x2', p2.x);
                     lineEl.setAttribute('y2', p2.y);
                 }
-            }
+            });
         }
 
         function iniciarEscaneamentoSimulado() {
@@ -1450,11 +1464,11 @@
             scannerLaser.style.display = 'block';        
             faceMeshOverlay.style.display = 'block';      
 
-            inicializarPontosMesh();
-            moverPontosBiometricos();
+            inicializarPontosMeshContorno();
+            moverPontosMeshContorno();
 
-            scanHighlightInterval = setInterval(animarDestaqueIcones, 500);
-            meshMoveInterval = setInterval(moverPontosBiometricos, 1200);
+            scanHighlightInterval = setInterval(animarDestaqueIcones, 400);
+            meshMoveInterval = setInterval(moverPontosMeshContorno, 800);
 
             let fill = document.getElementById('progressFill');
             let loaderText = document.getElementById('loaderText');
@@ -1477,6 +1491,7 @@
                     faceMeshOverlay.style.display = 'none';  
                     document.querySelectorAll('.icon-item').forEach(i => i.classList.remove('active-scan'));
 
+                    document.body.classList.remove('focus-mode');
                     document.getElementById('heroSection').style.display = 'none';
 
                     exibirResultadosFalsosBorrados();
