@@ -594,11 +594,9 @@
             transition: transform 0.2s;
         }
 
-        .result-card-square:hover {
-            transform: translateY(-3px);
-        }
+        .result-card-square:hover { transform: translateY(-3px); }
 
-        /* O PRIMEIRO CARTÃO (MAIOR CORRESPONDÊNCIA) DESTACADO EM TAMANHO E COR */
+        /* O PRIMEIRO CARTÃO DESTACADO */
         .result-card-square.featured {
             grid-column: 1 / -1;
             flex-direction: row;
@@ -615,9 +613,7 @@
             left: 0; top: 0;
         }
 
-        .result-card-square.featured .social-gradient-bar {
-            width: 8px;
-        }
+        .result-card-square.featured .social-gradient-bar { width: 8px; }
 
         .avatar-match-wrapper {
             position: relative;
@@ -636,8 +632,7 @@
 
         .match-badge-tag {
             position: absolute;
-            top: -4px;
-            right: -6px;
+            top: -4px; right: -6px;
             background: #10b981;
             color: #fff;
             font-size: 0.72rem;
@@ -650,8 +645,7 @@
         }
 
         .result-avatar-img {
-            width: 100%;
-            height: 100%;
+            width: 100%; height: 100%;
             border-radius: 50%;
             object-fit: cover;
             border: 2px solid rgba(255,255,255,0.15);
@@ -1029,9 +1023,9 @@
             </div>
         </div>
 
-        <!-- SEÇÃO DE RESULTADOS EM GRADE DE QUADRADOS (SORTEADOS DE 4 A 12) -->
+        <!-- SEÇÃO DE RESULTADOS EM PORTUGUÊS E SEM CADEADOS -->
         <div class="results-section" id="resultsSection">
-            <h2 class="results-header-title">find anyone's social media</h2>
+            <h2 class="results-header-title">encontre as redes sociais de qualquer pessoa</h2>
             <div class="results-grid" id="resultsGridContainer"></div>
         </div>
 
@@ -1582,25 +1576,21 @@
             document.getElementById('resultsSection').style.display = 'block';
             document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
 
-            // Sorteia a quantidade de resultados entre 4 e 12
             const quantidadeResultados = Math.floor(Math.random() * (12 - 4 + 1)) + 4;
             
-            // Gera array com dados simulados e embaralhados
             let listaPerfis = [];
             for (let i = 0; i < quantidadeResultados; i++) {
                 const redeData = perfisDatabaseFalsos[Math.floor(Math.random() * perfisDatabaseFalsos.length)];
                 const username = redeData.usernames[Math.floor(Math.random() * redeData.usernames.length)];
-                // Precisão decrescente para o primeiro ser o maior
                 const precisao = i === 0 ? (Math.random() * (99.5 - 94.0) + 94.0).toFixed(1) : (Math.random() * (93.9 - 78.0) + 78.0).toFixed(1);
                 
                 listaPerfis.push({ redeData, username, precisao });
             }
 
-            // Ordena decrescente pela precisão para garantir que o primeiro seja o de maior destaque
             listaPerfis.sort((a, b) => parseFloat(b.precisao) - parseFloat(a.precisao));
 
             listaPerfis.forEach((item, index) => {
-                const isFeatured = index === 0; // O primeiro cartão fica destacado em maior tamanho com a cor da rede
+                const isFeatured = index === 0;
                 const cardClass = isFeatured ? 'result-card-square featured' : 'result-card-square';
 
                 const cardHtml = `
@@ -1617,7 +1607,7 @@
                             <div class="username-blur-text blur-target">${item.username}</div>
                         </div>
                         <button class="btn-unlock-square" onclick="clicarDesbloquearResultado(${index})">
-                            <i class="fa-solid fa-lock"></i> Ver Resultado
+                            VER RESULTADO
                         </button>
                     </div>
                 `;
@@ -1718,7 +1708,7 @@
                             <div class="username-blur-text">${tituloPerfil}</div>
                         </div>
                         <a href="${urlPerfil}" target="_blank" class="btn-unlock-square" style="background: #10b981; color: #fff; text-decoration: none;">
-                            <i class="fa-solid fa-arrow-up-right-from-square"></i> Acessar
+                            ACESSAR
                         </a>
                     </div>
                 `;
