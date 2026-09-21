@@ -100,6 +100,13 @@
             gap: 12px;
             text-transform: lowercase;
             color: #fff;
+            text-decoration: none;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .logo:hover {
+            opacity: 0.85;
         }
 
         .logo-icon {
@@ -231,41 +238,43 @@
             transition: all 0.4s ease;
         }
 
-        /* LOGO E NOME FLutuante no Topo do Círculo durante a Varredura */
+        /* LOGO E NOME DO SITE FLUTUANTE NO CENTRO DURANTE A VARREDURA (CLICÁVEL) */
         .scan-brand-header {
             position: absolute;
-            top: -55px;
+            top: 25px;
             left: 50%;
             transform: translateX(-50%);
             display: none;
             align-items: center;
             gap: 10px;
-            background: rgba(15, 23, 42, 0.9);
+            background: rgba(15, 23, 42, 0.85);
             border: 1px solid rgba(245, 158, 11, 0.4);
             padding: 6px 16px;
             border-radius: 30px;
-            box-shadow: 0 0 20px var(--gold-glow);
-            z-index: 30;
+            box-shadow: 0 0 25px var(--gold-glow);
+            z-index: 40;
             backdrop-filter: blur(10px);
             white-space: nowrap;
+            text-decoration: none;
+            cursor: pointer;
         }
 
         .scan-brand-header .logo-icon-mini {
-            width: 28px;
-            height: 28px;
+            width: 26px;
+            height: 26px;
             background: rgba(245, 158, 11, 0.15);
             color: var(--gold);
-            border-radius: 8px;
+            border-radius: 7px;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             border: 1px solid rgba(245, 158, 11, 0.3);
         }
 
         .scan-brand-header span {
             font-weight: 900;
-            font-size: 1.1rem;
+            font-size: 1.05rem;
             letter-spacing: -0.5px;
             text-transform: lowercase;
             background: var(--gold-gradient);
@@ -888,12 +897,13 @@
 
     <div class="main-content-wrapper" id="mainContent">
         <header>
-            <div class="logo">
+            <!-- LOGOTIPO CLICÁVEL NO CABEÇALHO -->
+            <a href="#" class="logo" onclick="voltarParaInicio(event)">
                 <div class="logo-icon">
                     <i class="fa-solid fa-fingerprint"></i>
                 </div>
                 <span>radar facial</span>
-            </div>
+            </a>
             
             <div class="header-right">
                 <div class="credits-badge" id="creditsBadge">
@@ -921,6 +931,14 @@
         </header>
 
         <main class="hero" id="heroSection">
+            <!-- LOGOTIPO FLUTUANTE CLICÁVEL DURANTE O CARREGAMENTO -->
+            <a href="#" class="scan-brand-header" id="scanBrandHeader" onclick="voltarParaInicio(event)">
+                <div class="logo-icon-mini">
+                    <i class="fa-solid fa-fingerprint"></i>
+                </div>
+                <span>radar facial</span>
+            </a>
+
             <div class="investigator-badge">
                 <i class="fa-solid fa-shield-halved"></i> Investigador Biométrico AI
             </div>
@@ -929,14 +947,6 @@
             <p>Mapeamento biométrico cruzado em tempo real em redes sociais e bancos de dados abertos.</p>
 
             <div class="orbit-container">
-                <!-- LOGO E NOME FLUTUANDO NO TOPO DO CÍRCULO DURANTE A VARREDURA -->
-                <div class="scan-brand-header" id="scanBrandHeader">
-                    <div class="logo-icon-mini">
-                        <i class="fa-solid fa-fingerprint"></i>
-                    </div>
-                    <span>radar facial</span>
-                </div>
-
                 <div class="orbit-ring" id="orbitRing">
                     <div class="icon-item"><i class="fa-solid fa-user-secret"></i></div>
                     <div class="icon-item"><i class="fa-brands fa-instagram"></i></div>
@@ -1161,6 +1171,23 @@
             configurarTeclaEsc();
         });
 
+        function voltarParaInicio(e) {
+            e.preventDefault();
+            // Para qualquer animação ativa e limpa o estado de varredura se estiver rodando
+            if (scanHighlightInterval) clearInterval(scanHighlightInterval);
+            
+            // Restaura a tela inicial padrão
+            document.body.classList.remove('focus-mode');
+            document.getElementById('scanLoader').style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('scanBrandHeader').style.display = 'none';
+            document.getElementById('heroSection').style.display = 'block';
+            
+            // Reseta a foto carregada para voltar ao estado inicial
+            cancelarModoFoco();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
         function configurarTeclaEsc() {
             window.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
@@ -1195,6 +1222,7 @@
             document.getElementById('uploadPlaceholder').style.display = 'flex';
             document.getElementById('draggableThumb').src = '';
             document.getElementById('imageInput').value = '';
+            document.getElementById('scanBtn').style.display = 'inline-flex';
         }
 
         function renderizarBotaoGoogleModal() {
@@ -1513,7 +1541,6 @@
             document.getElementById('resultsSection').style.display = 'none';
             document.getElementById('scanLoader').style.display = 'flex';
 
-            // Mostra o logo e o nome do site no topo do círculo durante a varredura
             document.getElementById('scanBrandHeader').style.display = 'flex';
 
             const orbit = document.getElementById('orbitRing');
