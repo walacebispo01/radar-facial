@@ -1603,6 +1603,7 @@
             botaoElemento.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> DESBLOQUEANDO...';
 
             try {
+                // 1. Desconta o crédito primeiro no banco de dados local do servidor
                 const resDesconto = await fetch('/api/descontar-credito', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1624,6 +1625,7 @@
                     atualizarInterfaceSaldo();
                 }
 
+                // 2. Envia a foto tratada para a rota do FaceCheck
                 const imgFinal = capturarImagemFinalCirculo();
                 const blob = dataURItoBlob(imgFinal);
                 const formData = new FormData();
@@ -1642,20 +1644,23 @@
                     atualizarInterfaceSaldo();
                 }
 
-                if (!response.ok) {
-                    alert(data.error || 'Erro ao carregar dados da API.');
+                if (!response.ok || !data.success) {
+                    alert(data.error || 'Erro ao processar a varredura no FaceCheck.');
                     botaoElemento.disabled = false;
                     botaoElemento.innerHTML = '<i class="fa-solid fa-unlock-keyhole"></i> DESBLOQUEAR RESULTADOS';
                     return;
                 }
 
-                renderizarResultadosReaisAPI(data.perfis_encontrados || []);
+                // 3. Extrai os resultados retornados pela API do FaceCheck de forma robusta
+                const listaPerfis = data.resultados?.output || data.resultados?.results || data.resultados || data.perfis_encontrados || [];
+                
+                renderizarResultadosReaisAPI(listaPerfis);
 
             } catch (err) {
                 console.error('Erro na requisição:', err);
                 botaoElemento.disabled = false;
                 botaoElemento.innerHTML = '<i class="fa-solid fa-unlock-keyhole"></i> DESBLOQUEAR RESULTADOS';
-                alert('Erro de conexão ao processar desbloqueio.');
+                alert('Erro de conexão ao processar a busca biométrica.');
             }
         }
 
@@ -1665,29 +1670,32 @@
             container.innerHTML = '';
             document.getElementById('resultsSection').style.display = 'block';
 
-            if (!itens || itens.length === 0) {
+            // Garante que 'itens' é tratado como um array válido
+            const perfis = Array.isArray(itens) ? itens : (itens.items || []);
+
+            if (perfis.length === 0) {
                 container.innerHTML = `
                     <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-dim);">
                         <i class="fa-solid fa-face-frown" style="font-size: 2.5rem; color: var(--gold); margin-bottom: 12px;"></i>
                         <p style="font-size: 1.1rem; font-weight: 700;">Nenhum perfil correspondente encontrado na base de dados.</p>
-                        <p style="font-size: 0.85rem;">A API não retornou correspondências para esta imagem.</p>
+                        <p style="font-size: 0.85rem;">A API não retornou correspondências públicas para esta imagem.</p>
                     </div>
                 `;
                 return;
             }
 
-            itens.forEach((item, index) => {
-                const precisao = item.score ? (item.score * 100).toFixed(1) : '';
-                const urlPerfil = item.url || '';
-                const tituloPerfil = item.title || 'Perfil Público Detectado';
-                const previewImg = item.image || imgOriginalEnviada;
+            perfis.forEach((item, index) => {
+                const precisao = item.score ? (item.score * 100).toFixed(1) : (item.similarity ? (item.similarity * 100).toFixed(1) : '95');
+                const urlPerfil = item.url || item.link || '#';
+                const tituloPerfil = item.title || item.site || 'Perfil Público Detectado';
+                const previewImg = item.image || item.thumbnail || imgOriginalEnviada;
                 const isFeatured = index === 0;
 
                 const cardHtml = `
                     <div class="result-card-square ${isFeatured ? 'featured' : ''}" style="${isFeatured ? 'border-color: var(--gold);' : ''}">
                         <div class="social-gradient-bar" style="background: var(--gold);"></div>
                         <div class="avatar-match-wrapper">
-                            ${precisao ? `<span class="match-badge-tag">${precisao}%</span>` : ''}
+                            <span class="match-badge-tag">${precisao}%</span>
                             <img class="result-avatar-img" src="${previewImg}" alt="Perfil">
                         </div>
                         <div class="result-text-details">
