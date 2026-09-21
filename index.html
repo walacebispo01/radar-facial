@@ -45,7 +45,7 @@
             user-select: none;
         }
 
-        /* MODO FOCO: Quando a foto é carregada, esconde os ícones e expande o círculo */
+        /* MODO FOCO: Esconde os ícones e expande a área central ao carregar a foto */
         body.focus-mode header,
         body.focus-mode .hero h1,
         body.focus-mode .hero p,
@@ -68,13 +68,13 @@
         body.focus-mode .orbit-container {
             width: 320px;
             height: 320px;
-            transform: scale(1.25);
+            transform: scale(1.2);
             transition: transform 0.4s ease;
         }
 
         body.focus-mode .upload-center {
-            width: 240px !important;
-            height: 240px !important;
+            width: 220px !important;
+            height: 220px !important;
             box-shadow: 0 0 50px rgba(245, 158, 11, 0.5), 0 25px 50px rgba(0,0,0,0.9);
         }
 
@@ -290,7 +290,9 @@
             transform: translate(-50%, -50%);
             cursor: grab;
             user-select: none;
-            max-width: none;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
         }
         
         .interactive-preview-container img:active {
@@ -898,8 +900,7 @@
                     </div>
                 </div>
 
-                <!-- Dica de ajuda dinâmica para zoom e arraste -->
-                <div class="zoom-hint" id="zoomHint">Posicione o rosto • Ctrl + Roda para Zoom</div>
+                <div class="zoom-hint" id="zoomHint">Arraste para mover • Role o mouse para Zoom</div>
             </div>
 
             <button class="scan-action-btn" id="scanBtn" onclick="clicarProcurar()">
@@ -1111,7 +1112,7 @@
                         document.getElementById('zoomHint').style.display = 'block';
                         document.getElementById('uploadPlaceholder').style.display = 'none';
 
-                        // Ativa o modo de foco limpo (esconde ícones, aumenta a bola central e embaça o fundo)
+                        // Ativa o modo limpo/foco (aumenta o círculo e embaça o fundo)
                         document.body.classList.add('focus-mode');
                     };
                 }
@@ -1141,20 +1142,18 @@
                 isDragging = false;
             });
 
-            // Zoom com Ctrl + Roda do Mouse (PC)
+            // Zoom direto com a roda do mouse (Sem precisar de Ctrl)
             container.addEventListener('wheel', (e) => {
-                if (e.ctrlKey) {
-                    e.preventDefault();
-                    const zoomIntensity = 0.15;
-                    if (e.deltaY < 0) {
-                        currentScale += zoomIntensity;
-                    } else {
-                        currentScale -= zoomIntensity;
-                    }
-                    if (currentScale < 0.3) currentScale = 0.3;
-                    if (currentScale > 5) currentScale = 5;
-                    atualizarTransformacaoImagem();
+                e.preventDefault();
+                const zoomIntensity = 0.15;
+                if (e.deltaY < 0) {
+                    currentScale += zoomIntensity;
+                } else {
+                    currentScale -= zoomIntensity;
                 }
+                if (currentScale < 0.2) currentScale = 0.2;
+                if (currentScale > 5) currentScale = 5;
+                atualizarTransformacaoImagem();
             }, { passive: false });
 
             // Toque e Pinça com dois dedos (Mobile)
@@ -1184,7 +1183,7 @@
                     );
                     const factor = currentDistance / initialPinchDistance;
                     currentScale *= factor;
-                    if (currentScale < 0.3) currentScale = 0.3;
+                    if (currentScale < 0.2) currentScale = 0.2;
                     if (currentScale > 5) currentScale = 5;
                     initialPinchDistance = currentDistance;
                     atualizarTransformacaoImagem();
@@ -1215,8 +1214,8 @@
             canvas.height = 400;
             const ctx = canvas.getContext('2d');
 
-            const containerWidth = 240; // Ajustado para o novo tamanho da bola expandida
-            const containerHeight = 240;
+            const containerWidth = 220; 
+            const containerHeight = 220;
             const scaleFactor = 400 / containerWidth;
 
             ctx.clearRect(0, 0, 400, 400);
@@ -1266,7 +1265,6 @@
                 return;
             }
 
-            // Remove o modo de foco limpo ao iniciar a busca
             document.body.classList.remove('focus-mode');
             document.getElementById('zoomHint').style.display = 'none';
 
@@ -1281,7 +1279,7 @@
         }
 
         function moverPontosBiometricos() {
-            const containerSize = 240; 
+            const containerSize = 220; 
             const dotElements = [];
 
             for (let i = 0; i < 25; i++) {
