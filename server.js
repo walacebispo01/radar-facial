@@ -11,7 +11,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Rota raiz explícita para abrir o index.html perfeitamente na porta 3000
+// Rota raiz explícita para abrir o index.html na porta 3000
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -19,7 +19,7 @@ app.get('/', (req, res) => {
 // Serve automaticamente todos os arquivos da pasta
 app.use(express.static(__dirname));
 
-// Configuração do Multer (armazenamento de arquivos temporários na memória)
+// Configuração do Multer (armazena o ficheiro temporariamente na memória RAM)
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
@@ -29,10 +29,10 @@ const client = new MercadoPagoConfig({
 });
 const payment = new Payment(client);
 
-// Banco de dados temporário em memória para controlar transações e saldo de buscas
+// Base de dados temporária em memória estrita
 const transacoes = {};
 
-// 1. Rota para gerar PIX (Compatível com o front-end)
+// 1. Rota para gerar PIX Real
 app.post('/api/criar-pix', async (req, res) => {
     try {
         const { valor, plano, email } = req.body;
@@ -41,15 +41,13 @@ app.post('/api/criar-pix', async (req, res) => {
             transaction_amount: Number(valor || 24.99),
             description: `Radar Facial - ${plano || 'Pacote de Buscas'}`,
             payment_method_id: 'pix',
-            payer: {
-                email: email || 'cliente@radar.com'
-            }
+            payer: { email: email || 'cliente@radar.com' }
         };
 
         const result = await payment.create({ body });
-
         const qtdCreditos = plano === 'Pesquisa Única' ? 1 : (plano === 'Pacote Investigador' ? 10 : 40);
 
+        // Registo estrito da transação pendente
         transacoes[result.id] = {
             status: 'pending',
             buscas_restantes: qtdCreditos,
@@ -63,7 +61,7 @@ app.post('/api/criar-pix', async (req, res) => {
             qr_code_base64: result.point_of_interaction?.transaction_data?.qr_code_base64
         });
     } catch (error) {
-        console.error('Erro ao gerar PIX:', error);
+        console.error('Erro ao gerar PIX:', error.response?.data || error.message);
         res.status(500).json({ success: false, error: 'Erro ao gerar o pagamento via PIX.' });
     }
 });
@@ -76,11 +74,9 @@ app.post('/api/webhook-mercadopago', async (req, res) => {
         if (type === 'payment' && data?.id) {
             const paymentData = await payment.get({ id: data.id });
 
-            if (paymentData.status === 'approved') {
-                if (transacoes[data.id]) {
-                    transacoes[data.id].status = 'approved';
-                    console.log(`✅ Pagamento ${data.id} APROVADO! Buscas liberadas.`);
-                }
+            if (paymentData.status === 'approved' && transacoes[data.id]) {
+                transacoes[data.id].status = 'approved';
+                console.log(`✅ Pagamento ${data.id} APROVADO! Buscas liberadas com sucesso.`);
             }
         }
         res.sendStatus(200);
@@ -90,44 +86,63 @@ app.post('/api/webhook-mercadopago', async (req, res) => {
     }
 });
 
-// 3. Rota de checagem do status do pagamento
-app.get('/api/status-pagamento/:paymentId', (req, res) => {
-    const { paymentId } = req.params;
-    const transacao = transacoes[paymentId];
+// 3. Rota de verificação do status do pagamento
+app.get('/api/status-pagamento/:paymentId', async (req, res) => {
+    try {
+        const { paymentId } = req.params;
+        let transacao = transacoes[paymentId];
 
-    if (transacao) {
-        res.json({
-            status: transacao.status,
-            buscas_restantes: transacao.buscas_restantes
-        });
-    } else {
-        res.status(404).json({ error: 'Transação não encontrada.' });
+        // Consulta também direto na API do Mercado Pago para garantir aprovação imediata se já foi pago
+        if (paymentId && !paymentId.startsWith('pix_')) {
+            try {
+                const mpCheck = await payment.get({ id: paymentId });
+                if (mpCheck.status === 'approved') {
+                    if (!transacao) {
+                        transacao = { status: 'approved', buscas_restantes: 1 };
+                        transacoes[paymentId] = transacao;
+                    } else {
+                        transacao.status = 'approved';
+                    }
+                }
+            } catch (e) {
+                // Ignora erro de consulta se o ID for inválido/simulado
+            }
+        }
+
+        if (transacao) {
+            res.json({
+                status: transacao.status,
+                buscas_restantes: transacao.buscas_restantes
+            });
+        } else {
+            res.status(404).json({ error: 'Transação não encontrada.' });
+        }
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao verificar pagamento.' });
     }
 });
 
-// 4. Rota para Executar a Busca Facial Real via FaceCheck API (Com tratamento de erro seguro)
+// 4. Rota para Executar a Busca Facial Real via FaceCheck API (Estrita e sem fallbacks falsos)
 app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
     try {
         const { payment_id } = req.body;
         
         let transacao = transacoes[payment_id];
-        if (!transacao) {
-            transacao = { status: 'approved', buscas_restantes: 99 };
-        }
-        
-        if (process.env.MERCADOPAGO_TOKEN && payment_id && payment_id.startsWith('pix_') === false && (!transacao || transacao.status !== 'approved' || transacao.buscas_restantes <= 0)) {
-            return res.status(403).json({ error: 'Nenhum saldo de busca disponível. Efetue o pagamento do pacote.' });
+
+        // Se o pagamento não existir ou não estiver aprovado, bloqueia estritamente
+        if (!transacao || transacao.status !== 'approved' || transacao.buscas_restantes <= 0) {
+            return res.status(403).json({ error: 'Pagamento não confirmado ou créditos esgotados. Efetue o pagamento via PIX para realizar a busca.' });
         }
 
         if (!req.file) {
             return res.status(400).json({ error: 'Nenhuma imagem enviada.' });
         }
 
-        // PASSO 1: Upload da imagem para obter o id_search do FaceCheck
+        // PASSO 1: Envia a imagem real para a API do FaceCheck obter o id_search
         const formDataUpload = new FormData();
         formDataUpload.append('images', req.file.buffer, { 
             filename: 'rosto.jpg', 
-            contentType: req.file.mimetype 
+            contentType: req.file.mimetype || 'image/jpeg' 
         });
 
         const uploadRes = await axios.post('https://facecheck.id/api/v1/upload_pic', formDataUpload, {
@@ -142,7 +157,7 @@ app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
             return res.status(500).json({ error: 'Erro ao gerar ID de busca na API facial.' });
         }
 
-        // PASSO 2: Rodar a busca com o ID obtido (testing_mode: false para buscar perfis reais na web)
+        // PASSO 2: Executa a varredura real na internet (testing_mode: false obrigatório)
         const searchRes = await axios.post('https://facecheck.id/api/v1/search', {
             id_search: idSearch,
             testing_mode: false 
@@ -153,13 +168,12 @@ app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
             }
         });
 
-        if (transacao && transacao.buscas_restantes > 0) {
-            transacao.buscas_restantes -= 1;
-        }
+        // Deduz estritamente 1 crédito após o sucesso da busca real
+        transacao.buscas_restantes -= 1;
 
         res.json({
             sucesso: true,
-            buscas_restantes: transacao ? transacao.buscas_restantes : 9,
+            buscas_restantes: transacao.buscas_restantes,
             mensagem: 'Escaneamento biométrico executado com sucesso.',
             perfis_encontrados: searchRes.data.output?.items || []
         });
