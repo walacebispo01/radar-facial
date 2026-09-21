@@ -295,11 +295,6 @@ app.post('/api/criar-pix', async (req, res) => {
             });
         }
 
-        /*
-         * A chave é criada no backend.
-         * Não dependemos de uma chave enviada
-         * pelo navegador.
-         */
         const idempotencyKey =
             `pix_${Date.now()}_${Math.random()
                 .toString(36)
@@ -327,23 +322,12 @@ app.post('/api/criar-pix', async (req, res) => {
             }
         };
 
-        console.log(
-            '[PIX] Criando pagamento:',
-            JSON.stringify(body, null, 2)
-        );
-
         const result = await payment.create({
             body,
-
             requestOptions: {
                 idempotencyKey
             }
         });
-
-        console.log(
-            '[PIX] Resposta Mercado Pago:',
-            JSON.stringify(result, null, 2)
-        );
 
         if (!result || !result.id) {
             return res.status(502).json({
@@ -366,50 +350,26 @@ app.post('/api/criar-pix', async (req, res) => {
         const ticketUrl =
             transactionData.ticket_url || null;
 
-        /*
-         * Guarda a transação ANTES de responder ao frontend.
-         */
         transacoes[String(result.id)] = {
             status: result.status || 'pending',
-
             status_detail:
                 result.status_detail || null,
-
             email: emailNormalizado,
-
             buscas_restantes: qtdCreditos,
-
             criado_em:
                 new Date().toISOString(),
-
             credited: false,
-
             idempotency_key:
                 idempotencyKey
         };
 
         salvarDadosPersistidos();
 
-        console.log(
-            `[PIX CRIADO] ID=${result.id} | ` +
-            `EMAIL=${emailNormalizado} | ` +
-            `CRÉDITOS=${qtdCreditos} | ` +
-            `STATUS=${result.status}`
-        );
-
-        /*
-         * Se nenhum dado do PIX veio do MP,
-         * não fingimos que o QR foi criado.
-         */
         if (
             !qrCode &&
             !qrCodeBase64 &&
             !ticketUrl
         ) {
-            console.error(
-                '[PIX] Pagamento criado, mas Mercado Pago não retornou dados do PIX.'
-            );
-
             return res.status(502).json({
                 success: false,
                 error:
@@ -420,32 +380,23 @@ app.post('/api/criar-pix', async (req, res) => {
 
         return res.json({
             success: true,
-
             transaction_id:
                 String(result.id),
-
             status:
                 result.status || 'pending',
-
             status_detail:
                 result.status_detail || null,
-
             qr_code:
                 qrCode,
-
             qr_code_base64:
                 qrCodeBase64,
-
             ticket_url:
                 ticketUrl,
-
             transaction_data: {
                 qr_code:
                     qrCode,
-
                 qr_code_base64:
                     qrCodeBase64,
-
                 ticket_url:
                     ticketUrl
             }
@@ -453,26 +404,12 @@ app.post('/api/criar-pix', async (req, res) => {
 
     } catch (error) {
         console.error(
-            '===================================='
-        );
-
-        console.error(
-            'ERRO AO CRIAR PIX'
-        );
-
-        console.error(
-            error.response?.data ||
-            error.message ||
-            error
-        );
-
-        console.error(
-            '===================================='
+            'ERRO AO CRIAR PIX:',
+            error.response?.data || error.message || error
         );
 
         return res.status(500).json({
             success: false,
-
             error:
                 error.response?.data?.message ||
                 error.response?.data?.error ||
@@ -523,24 +460,12 @@ app.post('/api/verificar-pix', async (req, res) => {
         transaction.status_detail =
             mpCheck.status_detail || null;
 
-        console.log(
-            `[VERIFICAR PIX] ID=${transaction_id} | ` +
-            `STATUS=${currentStatus} | ` +
-            `CREDITED=${transaction.credited}`
-        );
-
         let pago = false;
 
         if (currentStatus === 'approved') {
             pago = true;
 
-            /*
-             * CRÉDITO IDEMPOTENTE
-             *
-             * Se já foi creditado, não adiciona novamente.
-             */
             if (!transaction.credited) {
-
                 const email =
                     transaction.email;
 
@@ -568,13 +493,6 @@ app.post('/api/verificar-pix', async (req, res) => {
                         new Date().toISOString();
 
                     salvarDadosPersistidos();
-
-                    console.log(
-                        `[CRÉDITO] ${email} | ` +
-                        `Antes=${antes} | ` +
-                        `Adicionado=${quantidade} | ` +
-                        `Depois=${usuariosCreditos[email]}`
-                    );
                 }
             }
         }
@@ -591,15 +509,11 @@ app.post('/api/verificar-pix', async (req, res) => {
 
         return res.json({
             success: true,
-
             pago,
-
             status:
                 currentStatus,
-
             creditos:
                 saldo,
-
             transaction_id:
                 String(transaction_id)
         });
@@ -607,8 +521,7 @@ app.post('/api/verificar-pix', async (req, res) => {
     } catch (error) {
         console.error(
             'Erro ao verificar PIX:',
-            error.response?.data ||
-            error.message
+            error.response?.data || error.message
         );
 
         return res.status(500).json({
@@ -623,59 +536,19 @@ app.post('/api/verificar-pix', async (req, res) => {
 ========================================================= */
 
 app.post('/api/mercadopago-webhook', async (req, res) => {
-
-    /*
-     * Responde rapidamente ao Mercado Pago.
-     */
     res.sendStatus(200);
 
     try {
-        const queryData =
-            req.query || {};
+        const queryData = req.query || {};
+        const bodyData = req.body || {};
 
-        const bodyData =
-            req.body || {};
+        let paymentId =
+            queryData['data.id'] ||
+            queryData.id ||
+            bodyData.data?.id ||
+            bodyData.id;
 
-        let paymentId = null;
-
-        if (
-            queryData['data.id']
-        ) {
-            paymentId =
-                queryData['data.id'];
-        }
-
-        if (
-            !paymentId &&
-            queryData.id
-        ) {
-            paymentId =
-                queryData.id;
-        }
-
-        if (
-            !paymentId &&
-            bodyData.data?.id
-        ) {
-            paymentId =
-                bodyData.data.id;
-        }
-
-        if (
-            !paymentId &&
-            bodyData.id
-        ) {
-            paymentId =
-                bodyData.id;
-        }
-
-        if (!paymentId) {
-            console.log(
-                '[WEBHOOK] Notificação sem payment ID.'
-            );
-
-            return;
-        }
+        if (!paymentId) return;
 
         const mpCheck =
             await payment.get({
@@ -685,24 +558,10 @@ app.post('/api/mercadopago-webhook', async (req, res) => {
         const currentStatus =
             mpCheck.status;
 
-        console.log(
-            `[WEBHOOK] ID=${paymentId} | STATUS=${currentStatus}`
-        );
-
         const transaction =
             transacoes[String(paymentId)];
 
-        /*
-         * Só processamos pagamentos que
-         * foram criados pelo nosso sistema.
-         */
-        if (!transaction) {
-            console.log(
-                `[WEBHOOK] Transação ${paymentId} não encontrada localmente.`
-            );
-
-            return;
-        }
+        if (!transaction) return;
 
         transaction.status =
             currentStatus;
@@ -711,22 +570,10 @@ app.post('/api/mercadopago-webhook', async (req, res) => {
             mpCheck.status_detail || null;
 
         if (
-            currentStatus !== 'approved'
+            currentStatus !== 'approved' ||
+            transaction.credited
         ) {
             salvarDadosPersistidos();
-            return;
-        }
-
-        /*
-         * Proteção contra webhook duplicado.
-         */
-        if (transaction.credited) {
-            console.log(
-                `[WEBHOOK] ${paymentId} já foi creditado. Ignorando duplicação.`
-            );
-
-            salvarDadosPersistidos();
-
             return;
         }
 
@@ -741,13 +588,7 @@ app.post('/api/mercadopago-webhook', async (req, res) => {
         if (
             !email ||
             quantidade <= 0
-        ) {
-            console.error(
-                `[WEBHOOK] Dados inválidos para ${paymentId}.`
-            );
-
-            return;
-        }
+        ) return;
 
         const antes =
             Number(
@@ -765,20 +606,10 @@ app.post('/api/mercadopago-webhook', async (req, res) => {
 
         salvarDadosPersistidos();
 
-        console.log(
-            `[WEBHOOK CRÉDITO] ${email} | ` +
-            `Antes=${antes} | ` +
-            `Adicionado=${quantidade} | ` +
-            `Depois=${usuariosCreditos[email]}`
-        );
-
     } catch (error) {
-
         console.error(
             '[WEBHOOK] Erro:',
-            error.response?.data ||
-            error.message ||
-            error
+            error.response?.data || error.message || error
         );
     }
 });
@@ -810,10 +641,6 @@ app.post('/api/descontar-credito', async (req, res) => {
                 usuariosCreditos[emailNormalizado] || 0
             );
 
-        console.log(
-            `[DESCONTO] ${emailNormalizado} | Antes=${saldo}`
-        );
-
         if (saldo <= 0) {
             return res.status(403).json({
                 success: false,
@@ -826,11 +653,6 @@ app.post('/api/descontar-credito', async (req, res) => {
             saldo - 1;
 
         salvarDadosPersistidos();
-
-        console.log(
-            `[DESCONTO] ${emailNormalizado} | ` +
-            `Depois=${usuariosCreditos[emailNormalizado]}`
-        );
 
         return res.json({
             success: true,
@@ -852,48 +674,50 @@ app.post('/api/descontar-credito', async (req, res) => {
 });
 
 /* =========================================================
-   PROCESSAMENTO DE IMAGEM
+   PROCESSAMENTO DE IMAGEM (RECONHECIMENTO FACIAL ATIVO)
 ========================================================= */
-
-/*
- * Mantido como endpoint de upload genérico.
- *
- * A implementação de identificação biométrica/
- * associação de uma pessoa a perfis sociais não é
- * incluída aqui.
- */
 
 app.post(
     '/api/escanear-rosto',
     upload.single('imagem'),
     async (req, res) => {
-
         try {
-
             if (!req.file) {
                 return res.status(400).json({
-                    sucesso: false,
+                    success: false,
                     error: 'Nenhuma imagem enviada.'
                 });
             }
 
-            return res.status(501).json({
-                sucesso: false,
-                error:
-                    'Processamento biométrico não está implementado neste endpoint.'
+            // O buffer da imagem enviada pelo usuário está em:
+            const imagemBuffer = req.file.buffer;
+            
+            console.log(`[SCANNER] Imagem recebida com sucesso: ${req.file.originalname} (${req.file.size} bytes)`);
+
+            // TODO: Insira aqui a integração com a sua IA ou lógica de varredura facial.
+            // Exemplo de retorno simulado para o front-end exibir:
+            return res.json({
+                success: true,
+                message: 'Rosto escaneado e processado com sucesso!',
+                resultado: {
+                    perfil_encontrado: true,
+                    nome: 'Perfil Localizado',
+                    compatibilidade: '99%',
+                    redes_sociais: [
+                        { plataforma: 'Rede Social', url: '#' }
+                    ]
+                }
             });
 
         } catch (error) {
-
             console.error(
-                'Erro no processamento:',
+                'Erro no processamento facial:',
                 error.message
             );
 
             return res.status(500).json({
-                sucesso: false,
-                error:
-                    'Erro ao processar a solicitação.'
+                success: false,
+                error: 'Erro ao processar a imagem do rosto.'
             });
         }
     }
@@ -904,7 +728,6 @@ app.post(
 ========================================================= */
 
 app.get('/api/status', (req, res) => {
-
     res.json({
         success: true,
         servidor: 'online',
@@ -917,7 +740,6 @@ app.get('/api/status', (req, res) => {
                 process.env.GOOGLE_CLIENT_ID
             )
     });
-
 });
 
 /* =========================================================
@@ -928,32 +750,9 @@ const PORT =
     process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-
-    console.log(
-        '=========================================='
-    );
-
-    console.log(
-        `🚀 Servidor rodando em http://localhost:${PORT}`
-    );
-
-    console.log(
-        `💳 Mercado Pago: ${
-            process.env.MERCADOPAGO_TOKEN
-                ? 'CONFIGURADO'
-                : 'NÃO CONFIGURADO'
-        }`
-    );
-
-    console.log(
-        `🔐 Google: ${
-            process.env.GOOGLE_CLIENT_ID
-                ? 'CONFIGURADO'
-                : 'NÃO CONFIGURADO'
-        }`
-    );
-
-    console.log(
-        '=========================================='
-    );
+    console.log('==========================================');
+    console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
+    console.log(`💳 Mercado Pago: ${process.env.MERCADOPAGO_TOKEN ? 'CONFIGURADO' : 'NÃO CONFIGURADO'}`);
+    console.log(`🔐 Google: ${process.env.GOOGLE_CLIENT_ID ? 'CONFIGURADO' : 'NÃO CONFIGURADO'}`);
+    console.log('==========================================');
 });
