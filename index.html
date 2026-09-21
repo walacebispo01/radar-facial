@@ -548,7 +548,6 @@
             transition: width 0.05s linear;
         }
 
-        /* SEÇÃO DE RESULTADOS EM GRADE DE QUADRADOS */
         .results-section {
             display: none;
             width: 100%;
@@ -577,7 +576,6 @@
             margin-bottom: 40px;
         }
 
-        /* Cartão de Quadrado Individual */
         .result-card-square {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
@@ -596,7 +594,6 @@
 
         .result-card-square:hover { transform: translateY(-3px); }
 
-        /* O PRIMEIRO CARTÃO DESTACADO */
         .result-card-square.featured {
             grid-column: 1 / -1;
             flex-direction: row;
@@ -880,6 +877,10 @@
 
         .btn-pay { background: var(--gold-gradient); color: #000; box-shadow: 0 8px 25px var(--gold-glow); }
         .btn-pay:hover { opacity: 0.95; transform: translateY(-2px); box-shadow: 0 12px 30px rgba(245, 158, 11, 0.4); }
+        
+        .btn-check-pix { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.5); }
+        .btn-check-pix:hover { background: rgba(16, 185, 129, 0.3); color: #fff; }
+
         .btn-close { background: rgba(255,255,255,0.05); color: var(--text-dim); }
         .btn-close:hover { background: rgba(255,255,255,0.1); color: #fff; }
 
@@ -1023,7 +1024,6 @@
             </div>
         </div>
 
-        <!-- SEÇÃO DE RESULTADOS EM PORTUGUÊS E SEM CADEADOS -->
         <div class="results-section" id="resultsSection">
             <h2 class="results-header-title">encontre as redes sociais de qualquer pessoa</h2>
             <div class="results-grid" id="resultsGridContainer"></div>
@@ -1035,7 +1035,7 @@
                 <div class="lbl">Rostos Mapeados</div>
             </div>
             <div class="stat-card">
-                <div class="val">20.480</div>
+                <div class="val">4.85M+</div>
                 <div class="lbl">Buscas Concluídas</div>
             </div>
             <div class="stat-card">
@@ -1120,7 +1120,7 @@
         </div>
     </div>
 
-    <!-- Modal do PIX -->
+    <!-- Modal do PIX COM BOTÃO DE VERIFICAR PAGAMENTO -->
     <div class="modal" id="modalPix">
         <div class="modal-content-crop" style="max-width: 400px;">
             <button class="modal-close-x" onclick="voltarParaPlanos()"><i class="fa-solid fa-xmark"></i></button>
@@ -1138,11 +1138,15 @@
                 <i class="fa-solid fa-copy"></i> Copiar Código PIX
             </button>
 
+            <!-- BOTÃO DIRETO PARA FORÇAR A VERIFICAÇÃO DO PAGAMENTO E LIBERAR SALDO -->
+            <button class="btn-modal btn-check-pix" onclick="verificarPagamentoPix()">
+                <i class="fa-solid fa-rotate"></i> Já paguei / Verificar Saldo
+            </button>
+
             <button class="btn-modal btn-close" onclick="voltarParaPlanos()">Voltar aos Pacotes</button>
         </div>
     </div>
 
-    <!-- Toast de Prova Social -->
     <div class="social-proof-toast" id="socialProofToast">
         <i class="fa-solid fa-bolt"></i>
         <div class="social-proof-text">
@@ -1155,6 +1159,7 @@
         let pixCopiaCola = "";
         let scanHighlightInterval = null;
         let timerInterval = null;
+        let idTransacaoAtual = null;
 
         let saldoCreditos = 0;
         let usuarioEmail = localStorage.getItem('radar_user_email') || null;
@@ -1763,12 +1768,40 @@
                 if (data.success && data.qr_code_base64) {
                     document.getElementById('qrCodeBox').innerHTML = `<img src="data:image/jpeg;base64,${data.qr_code_base64}" alt="QR Code PIX">`;
                     pixCopiaCola = data.qr_code;
+                    idTransacaoAtual = data.transaction_id || null;
                 } else {
                     document.getElementById('qrCodeBox').innerHTML = '<p style="font-size: 0.7rem; color: red; text-align:center;">Erro ao gerar QR Code.</p>';
                 }
             } catch (err) {
                 console.error(err);
                 document.getElementById('qrCodeBox').innerHTML = '<p style="font-size: 0.7rem; color: red; text-align:center;">Erro de conexão com o servidor.</p>';
+            }
+        }
+
+        // FUNÇÃO QUE FORÇA A VERIFICAÇÃO DO PIX E LIBERA OS CRÉDITOS
+        async function verificarPagamentoPix() {
+            if (!usuarioEmail) return;
+
+            try {
+                const response = await fetch('/api/verificar-pix', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: usuarioEmail, transaction_id: idTransacaoAtual })
+                });
+
+                const data = await response.json();
+                if (data.pago || data.success) {
+                    saldoCreditos = data.creditos || (saldoCreditos + 1);
+                    atualizarInterfaceSaldo();
+                    document.getElementById('modalPix').style.display = 'none';
+                    document.body.classList.remove('modal-open');
+                    alert('Pagamento confirmado com sucesso! Seus créditos foram adicionados.');
+                } else {
+                    alert('O pagamento ainda não foi identificado pelo servidor. Aguarde alguns segundos e tente novamente.');
+                }
+            } catch (e) {
+                console.error(e);
+                alert('Erro ao verificar o pagamento com o servidor.');
             }
         }
 
