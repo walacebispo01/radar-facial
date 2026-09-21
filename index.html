@@ -677,7 +677,7 @@
             letter-spacing: 0.5px;
         }
 
-        /* Estilo para cards bloqueados / borrados (Teaser) */
+        /* Fase 1: Estilo para cards bloqueados / borrados */
         .result-card-square.locked .username-blur-text {
             filter: blur(6px);
             user-select: none;
@@ -1605,11 +1605,15 @@
                 const previewImg = item.image || imgFinal;
                 const isFeatured = index === 0;
 
-                // Lógica do Teaser / Blur: Se tiver créditos consome e libera, senão bloqueia e abre planos/Pix
-                const temCreditosSuficientes = saldoCreditos > 0;
-                const classeBloqueio = temCreditosSuficientes ? '' : 'locked';
-                const textoBotao = temCreditosSuficientes ? 'DESBLOQUEAR COM 1 CRÉDITO' : 'DESBLOQUEAR PERFIL (PIX)';
-                const acaoBotao = temCreditosSuficientes ? `consumirCreditoEDesbloquear('${urlPerfil}', this)` : `abrirModalPlanos()`;
+                // Verificação estrita das Fases:
+                // Se o utilizador tem créditos (> 0), o botão gasta 1 crédito e revela o resultado (Fase 2).
+                // Se o saldo for 0, o botão direciona para o modal de pacotes e Pix (Fase 1).
+                const temCreditos = saldoCreditos > 0;
+                const classeBloqueio = 'locked'; // Sempre nasce bloqueado (Fase 1)
+                const textoBotao = temCreditos ? 'DESBLOQUEAR COM 1 CRÉDITO' : 'DESBLOQUEAR PERFIL (PIX)';
+                const acaoBotao = temCreditos 
+                    ? `consumirCreditoEDesbloquear('${urlPerfil}', this)` 
+                    : `abrirModalPlanos()`;
 
                 const cardHtml = `
                     <div class="result-card-square ${isFeatured ? 'featured' : ''} ${classeBloqueio}" style="${isFeatured ? 'border-color: var(--gold);' : ''}">
@@ -1617,7 +1621,7 @@
                         <div class="avatar-match-wrapper">
                             <span class="match-badge-tag">${precisao}%</span>
                             <img class="result-avatar-img" src="${previewImg}" alt="Perfil">
-                            ${!temCreditosSuficientes ? '<div class="lock-badge-overlay"><i class="fa-solid fa-lock"></i> Bloqueado</div>' : ''}
+                            <div class="lock-badge-overlay"><i class="fa-solid fa-lock"></i> Bloqueado</div>
                         </div>
                         <div class="result-text-details">
                             <div class="network-label-row" style="color: var(--gold);">
@@ -1636,18 +1640,20 @@
             document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
         }
 
+        // Transição da Fase 1 (Bloqueado/Simulação) para a Fase 2 (Acesso real pós-crédito)
         function consumirCreditoEDesbloquear(urlOriginal, elementoBotao) {
             if (saldoCreditos > 0) {
                 saldoCreditos -= 1;
-                atualizarInterfaceSaldo();
+                atualizarInterfaceSaldo(); // Atualiza o saldo no topo
                 
                 const card = elementoBotao.closest('.result-card-square');
-                card.classList.remove('locked');
+                card.classList.remove('locked'); // Remove o blur do card
                 
                 const overlay = card.querySelector('.lock-badge-overlay');
-                if (overlay) overlay.remove();
+                if (overlay) overlay.remove(); // Remove o emblema de bloqueado
 
-                elementoBotao.innerHTML = '<i class="fa-solid fa-external-link"></i> ACESSAR PERFIL REAL';
+                // Libera o botão definitivo para ver a rede social
+                elementoBotao.innerHTML = '<i class="fa-solid fa-external-link"></i> ACESSAR REDE SOCIAL';
                 elementoBotao.style.background = '#10b981';
                 elementoBotao.style.color = '#fff';
                 elementoBotao.onclick = function() {
