@@ -806,10 +806,10 @@
                     <i class="fa-solid fa-coins"></i> Saldo: <span id="userCreditsCount">0</span> pesquisas
                 </div>
                 
-                <!-- Botão e Identificação Google Login -->
+                <!-- Botão e Identificação Google Login com o ID real inserido -->
                 <div id="googleLoginWrapper">
                     <div id="g_id_onload"
-                         data-client_id="SEU_CLIENT_ID_DO_GOOGLE.apps.googleusercontent.com"
+                         data-client_id="463131098345-iead7l2q9h6fgi6c36eq94ou04kmfbj3.apps.googleusercontent.com"
                          data-callback="handleGoogleLogin"
                          data-auto_prompt="false">
                     </div>
@@ -841,8 +841,8 @@
                     <div class="icon-item"><i class="fa-brands fa-facebook-f"></i></div>
                 </div>
 
-                <!-- Input ajustado para abrir a câmara frontal/traseira ou galeria em qualquer telemóvel -->
-                <input type="file" id="imageInput" accept="image/*" capture="environment" style="display: none;" onchange="carregarFotoDireta(event)">
+                <!-- Input ajustado sem o capture para permitir arquivo ou galeria livre -->
+                <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="carregarFotoDireta(event)">
 
                 <div class="upload-center" id="uploadBtn" onclick="document.getElementById('imageInput').click()">
                     <div class="scanner-laser" id="scannerLaser"></div>
