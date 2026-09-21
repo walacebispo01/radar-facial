@@ -41,15 +41,14 @@ app.post('/api/login-google', async (req, res) => {
 
         let creditosDisponiveis = 10; // Valor padrão inicial
         try {
-            // Consulta opcional direta na API do FaceCheck para puxar créditos reais se suportado
             const checkRes = await axios.get('https://facecheck.id/api/v1/credits', {
-                headers: { 'Authorization': `Bearer ${process.env.FACECK_API_KEY}` }
+                headers: { 'Authorization': `Bearer ${process.env.FACECHECK_API_KEY}` }
             });
             if (checkRes.data && checkRes.data.remaining_credits !== undefined) {
                 creditosDisponiveis = checkRes.data.remaining_credits;
             }
         } catch (e) {
-            // Se falhar a checagem externa, mantém o controle interno por usuário
+            // Mantém o controle interno se a rota de créditos externa falhar
         }
 
         if (usuariosCreditos[email] === undefined) {
@@ -96,7 +95,7 @@ app.post('/api/criar-pix', async (req, res) => {
     }
 });
 
-// Verificação de pagamento PIX para atualizar o saldo do usuário
+// Verificação estrita de pagamento PIX (sem créditos de graça)
 app.post('/api/verificar-pix', async (req, res) => {
     try {
         const { email, transaction_id } = req.body;
@@ -109,12 +108,14 @@ app.post('/api/verificar-pix', async (req, res) => {
                     transacoes[transaction_id].status = 'approved';
                     aprovado = true;
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.error('Erro ao consultar Mercado Pago:', e.message);
+            }
         }
 
-        // Liberação garantida para testes locais ou aprovação real
-        if (aprovado || !transaction_id || transaction_id.startsWith('pix_')) {
-            const qtdAdicionar = (transaction_id && transacoes[transaction_id]) ? transacoes[transaction_id].buscas_restantes : 1;
+        // Só adiciona créditos se o pagamento estiver aprovado de verdade pelo Mercado Pago
+        if (aprovado) {
+            const qtdAdicionar = transacoes[transaction_id].buscas_restantes;
             usuariosCreditos[email] = (usuariosCreditos[email] || 0) + qtdAdicionar;
             return res.json({ success: true, pago: true, creditos: usuariosCreditos[email] });
         }
@@ -148,7 +149,7 @@ app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
         const uploadRes = await axios.post('https://facecheck.id/api/v1/upload_pic', formDataUpload, {
             headers: {
                 ...formDataUpload.getHeaders(),
-                'Authorization': `Bearer ${process.env.FACECK_API_KEY}`
+                'Authorization': `Bearer ${process.env.FACECHECK_API_KEY}`
             }
         });
 
@@ -163,7 +164,7 @@ app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
             testing_mode: false 
         }, {
             headers: {
-                'Authorization': `Bearer ${process.env.FACECK_API_KEY}`,
+                'Authorization': `Bearer ${process.env.FACECHECK_API_KEY}`,
                 'Content-Type': 'application/json'
             }
         });
