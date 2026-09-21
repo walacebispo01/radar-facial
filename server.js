@@ -6,6 +6,7 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const axios = require('axios');
+const FormData = require('form-data');
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 const app = express();
@@ -78,11 +79,7 @@ function carregarDadosPersistidos() {
         };
 
     } catch (error) {
-        console.error(
-            'Erro ao carregar dados persistidos:',
-            error.message
-        );
-
+        console.error('Erro ao carregar dados persistidos:', error.message);
         return {
             transacoes: {},
             usuariosCreditos: {}
@@ -115,11 +112,7 @@ function salvarDadosPersistidos() {
         );
 
     } catch (error) {
-        console.error(
-            'Erro ao salvar dados persistidos:',
-            error.message
-        );
-
+        console.error('Erro ao salvar dados persistidos:', error.message);
         throw error;
     }
 }
@@ -161,21 +154,14 @@ async function validarTokenGoogle(credential) {
             process.env.GOOGLE_CLIENT_ID &&
             data.aud !== process.env.GOOGLE_CLIENT_ID
         ) {
-            console.error(
-                'Google Client ID não confere com o token.'
-            );
-
+            console.error('Google Client ID não confere com o token.');
             return null;
         }
 
         return data.email.toLowerCase().trim();
 
     } catch (error) {
-        console.error(
-            'Erro ao validar token Google:',
-            error.message
-        );
-
+        console.error('Erro ao validar token Google:', error.message);
         return null;
     }
 }
@@ -195,8 +181,7 @@ app.post('/api/login-google', async (req, res) => {
             });
         }
 
-        const emailValidado =
-            await validarTokenGoogle(credential);
+        const emailValidado = await validarTokenGoogle(credential);
 
         if (!emailValidado) {
             return res.status(401).json({
@@ -205,9 +190,7 @@ app.post('/api/login-google', async (req, res) => {
             });
         }
 
-        if (
-            usuariosCreditos[emailValidado] === undefined
-        ) {
+        if (usuariosCreditos[emailValidado] === undefined) {
             usuariosCreditos[emailValidado] = 0;
             salvarDadosPersistidos();
         }
@@ -219,10 +202,7 @@ app.post('/api/login-google', async (req, res) => {
         });
 
     } catch (error) {
-        console.error(
-            'Erro no login Google:',
-            error.message
-        );
+        console.error('Erro no login Google:', error.message);
 
         return res.status(500).json({
             success: false,
@@ -258,8 +238,7 @@ app.post('/api/criar-pix', async (req, res) => {
             });
         }
 
-        const emailNormalizado =
-            String(email).toLowerCase().trim();
+        const emailNormalizado = String(email).toLowerCase().trim();
 
         let qtdCreditos = Number(creditos);
 
@@ -301,20 +280,12 @@ app.post('/api/criar-pix', async (req, res) => {
                 .slice(2, 12)}`;
 
         const body = {
-            transaction_amount:
-                Number(valorNumerico.toFixed(2)),
-
-            description:
-                `Radar Facial - ${
-                    plano || 'Pacote de Créditos'
-                }`,
-
+            transaction_amount: Number(valorNumerico.toFixed(2)),
+            description: `Radar Facial - ${plano || 'Pacote de Créditos'}`,
             payment_method_id: 'pix',
-
             payer: {
                 email: emailNormalizado
             },
-
             metadata: {
                 email: emailNormalizado,
                 creditos: qtdCreditos,
@@ -332,35 +303,25 @@ app.post('/api/criar-pix', async (req, res) => {
         if (!result || !result.id) {
             return res.status(502).json({
                 success: false,
-                error:
-                    'Mercado Pago não retornou o ID do pagamento.'
+                error: 'Mercado Pago não retornou o ID do pagamento.'
             });
         }
 
         const transactionData =
-            result.point_of_interaction
-                ?.transaction_data || {};
+            result.point_of_interaction?.transaction_data || {};
 
-        const qrCode =
-            transactionData.qr_code || null;
-
-        const qrCodeBase64 =
-            transactionData.qr_code_base64 || null;
-
-        const ticketUrl =
-            transactionData.ticket_url || null;
+        const qrCode = transactionData.qr_code || null;
+        const qrCodeBase64 = transactionData.qr_code_base64 || null;
+        const ticketUrl = transactionData.ticket_url || null;
 
         transacoes[String(result.id)] = {
             status: result.status || 'pending',
-            status_detail:
-                result.status_detail || null,
+            status_detail: result.status_detail || null,
             email: emailNormalizado,
             buscas_restantes: qtdCreditos,
-            criado_em:
-                new Date().toISOString(),
+            criado_em: new Date().toISOString(),
             credited: false,
-            idempotency_key:
-                idempotencyKey
+            idempotency_key: idempotencyKey
         };
 
         salvarDadosPersistidos();
@@ -372,33 +333,23 @@ app.post('/api/criar-pix', async (req, res) => {
         ) {
             return res.status(502).json({
                 success: false,
-                error:
-                    'O pagamento foi criado, mas o Mercado Pago não retornou o QR Code.',
+                error: 'O pagamento foi criado, mas o Mercado Pago não retornou o QR Code.',
                 transaction_id: String(result.id)
             });
         }
 
         return res.json({
             success: true,
-            transaction_id:
-                String(result.id),
-            status:
-                result.status || 'pending',
-            status_detail:
-                result.status_detail || null,
-            qr_code:
-                qrCode,
-            qr_code_base64:
-                qrCodeBase64,
-            ticket_url:
-                ticketUrl,
+            transaction_id: String(result.id),
+            status: result.status || 'pending',
+            status_detail: result.status_detail || null,
+            qr_code: qrCode,
+            qr_code_base64: qrCodeBase64,
+            ticket_url: ticketUrl,
             transaction_data: {
-                qr_code:
-                    qrCode,
-                qr_code_base64:
-                    qrCodeBase64,
-                ticket_url:
-                    ticketUrl
+                qr_code: qrCode,
+                qr_code_base64: qrCodeBase64,
+                ticket_url: ticketUrl
             }
         });
 
@@ -425,9 +376,7 @@ app.post('/api/criar-pix', async (req, res) => {
 
 app.post('/api/verificar-pix', async (req, res) => {
     try {
-        const {
-            transaction_id
-        } = req.body;
+        const { transaction_id } = req.body;
 
         if (!transaction_id) {
             return res.status(400).json({
@@ -436,8 +385,7 @@ app.post('/api/verificar-pix', async (req, res) => {
             });
         }
 
-        const transaction =
-            transacoes[String(transaction_id)];
+        const transaction = transacoes[String(transaction_id)];
 
         if (!transaction) {
             return res.status(404).json({
@@ -446,19 +394,14 @@ app.post('/api/verificar-pix', async (req, res) => {
             });
         }
 
-        const mpCheck =
-            await payment.get({
-                id: String(transaction_id)
-            });
+        const mpCheck = await payment.get({
+            id: String(transaction_id)
+        });
 
-        const currentStatus =
-            mpCheck.status;
+        const currentStatus = mpCheck.status;
 
-        transaction.status =
-            currentStatus;
-
-        transaction.status_detail =
-            mpCheck.status_detail || null;
+        transaction.status = currentStatus;
+        transaction.status_detail = mpCheck.status_detail || null;
 
         let pago = false;
 
@@ -466,56 +409,28 @@ app.post('/api/verificar-pix', async (req, res) => {
             pago = true;
 
             if (!transaction.credited) {
-                const email =
-                    transaction.email;
+                const email = transaction.email;
+                const quantidade = Number(transaction.buscas_restantes || 0);
 
-                const quantidade =
-                    Number(
-                        transaction.buscas_restantes || 0
-                    );
-
-                if (
-                    email &&
-                    quantidade > 0
-                ) {
-                    const antes =
-                        Number(
-                            usuariosCreditos[email] || 0
-                        );
-
-                    usuariosCreditos[email] =
-                        antes + quantidade;
-
-                    transaction.credited =
-                        true;
-
-                    transaction.credited_em =
-                        new Date().toISOString();
-
+                if (email && quantidade > 0) {
+                    const antes = Number(usuariosCreditos[email] || 0);
+                    usuariosCreditos[email] = antes + quantidade;
+                    transaction.credited = true;
+                    transaction.credited_em = new Date().toISOString();
                     salvarDadosPersistidos();
                 }
             }
         }
 
-        const email =
-            transaction.email;
-
-        const saldo =
-            email
-                ? Number(
-                    usuariosCreditos[email] || 0
-                )
-                : 0;
+        const email = transaction.email;
+        const saldo = email ? Number(usuariosCreditos[email] || 0) : 0;
 
         return res.json({
             success: true,
             pago,
-            status:
-                currentStatus,
-            creditos:
-                saldo,
-            transaction_id:
-                String(transaction_id)
+            status: currentStatus,
+            creditos: saldo,
+            transaction_id: String(transaction_id)
         });
 
     } catch (error) {
@@ -550,24 +465,17 @@ app.post('/api/mercadopago-webhook', async (req, res) => {
 
         if (!paymentId) return;
 
-        const mpCheck =
-            await payment.get({
-                id: String(paymentId)
-            });
+        const mpCheck = await payment.get({
+            id: String(paymentId)
+        });
 
-        const currentStatus =
-            mpCheck.status;
-
-        const transaction =
-            transacoes[String(paymentId)];
+        const currentStatus = mpCheck.status;
+        const transaction = transacoes[String(paymentId)];
 
         if (!transaction) return;
 
-        transaction.status =
-            currentStatus;
-
-        transaction.status_detail =
-            mpCheck.status_detail || null;
+        transaction.status = currentStatus;
+        transaction.status_detail = mpCheck.status_detail || null;
 
         if (
             currentStatus !== 'approved' ||
@@ -577,32 +485,15 @@ app.post('/api/mercadopago-webhook', async (req, res) => {
             return;
         }
 
-        const email =
-            transaction.email;
+        const email = transaction.email;
+        const quantidade = Number(transaction.buscas_restantes || 0);
 
-        const quantidade =
-            Number(
-                transaction.buscas_restantes || 0
-            );
+        if (!email || quantidade <= 0) return;
 
-        if (
-            !email ||
-            quantidade <= 0
-        ) return;
-
-        const antes =
-            Number(
-                usuariosCreditos[email] || 0
-            );
-
-        usuariosCreditos[email] =
-            antes + quantidade;
-
-        transaction.credited =
-            true;
-
-        transaction.credited_em =
-            new Date().toISOString();
+        const antes = Number(usuariosCreditos[email] || 0);
+        usuariosCreditos[email] = antes + quantidade;
+        transaction.credited = true;
+        transaction.credited_em = new Date().toISOString();
 
         salvarDadosPersistidos();
 
@@ -620,9 +511,7 @@ app.post('/api/mercadopago-webhook', async (req, res) => {
 
 app.post('/api/descontar-credito', async (req, res) => {
     try {
-        const {
-            email
-        } = req.body;
+        const { email } = req.body;
 
         if (!email) {
             return res.status(400).json({
@@ -631,15 +520,8 @@ app.post('/api/descontar-credito', async (req, res) => {
             });
         }
 
-        const emailNormalizado =
-            String(email)
-                .toLowerCase()
-                .trim();
-
-        const saldo =
-            Number(
-                usuariosCreditos[emailNormalizado] || 0
-            );
+        const emailNormalizado = String(email).toLowerCase().trim();
+        const saldo = Number(usuariosCreditos[emailNormalizado] || 0);
 
         if (saldo <= 0) {
             return res.status(403).json({
@@ -649,22 +531,16 @@ app.post('/api/descontar-credito', async (req, res) => {
             });
         }
 
-        usuariosCreditos[emailNormalizado] =
-            saldo - 1;
-
+        usuariosCreditos[emailNormalizado] = saldo - 1;
         salvarDadosPersistidos();
 
         return res.json({
             success: true,
-            creditos:
-                usuariosCreditos[emailNormalizado]
+            creditos: usuariosCreditos[emailNormalizado]
         });
 
     } catch (error) {
-        console.error(
-            'Erro ao descontar crédito:',
-            error.message
-        );
+        console.error('Erro ao descontar crédito:', error.message);
 
         return res.status(500).json({
             success: false,
@@ -674,7 +550,7 @@ app.post('/api/descontar-credito', async (req, res) => {
 });
 
 /* =========================================================
-   PROCESSAMENTO DE IMAGEM (RECONHECIMENTO FACIAL ATIVO)
+   PROCESSAMENTO DE IMAGEM (FACECHECK API REAL)
 ========================================================= */
 
 app.post(
@@ -689,35 +565,71 @@ app.post(
                 });
             }
 
-            // O buffer da imagem enviada pelo usuário está em:
-            const imagemBuffer = req.file.buffer;
-            
-            console.log(`[SCANNER] Imagem recebida com sucesso: ${req.file.originalname} (${req.file.size} bytes)`);
+            if (!process.env.FACECHECK_API_KEY) {
+                return res.status(500).json({
+                    success: false,
+                    error: 'Chave da API do FaceCheck não configurada no servidor.'
+                });
+            }
 
-            // TODO: Insira aqui a integração com a sua IA ou lógica de varredura facial.
-            // Exemplo de retorno simulado para o front-end exibir:
+            const uploadForm = new FormData();
+            uploadForm.append('images_file', req.file.buffer, {
+                filename: req.file.originalname || 'rosto.jpg',
+                contentType: req.file.mimetype || 'image/jpeg'
+            });
+
+            console.log('[FACECHECK] Enviando imagem para upload na API...');
+
+            const uploadRes = await axios.post(
+                'https://facecheck.id/api/v1/upload_pix',
+                uploadForm,
+                {
+                    headers: {
+                        ...uploadForm.getHeaders(),
+                        'Authorization': `Bearer ${process.env.FACECHECK_API_KEY}`
+                    },
+                    timeout: 30000
+                }
+            );
+
+            const idSearch = uploadRes.data.id_search || uploadRes.data.id;
+
+            if (!idSearch) {
+                return res.status(502).json({
+                    success: false,
+                    error: 'FaceCheck não retornou o identificador da busca.'
+                });
+            }
+
+            console.log(`[FACECHECK] ID gerado: ${idSearch}. Consultando resultados...`);
+
+            const searchRes = await axios.post(
+                'https://facecheck.id/api/v1/search',
+                { id_search: idSearch },
+                {
+                    headers: {
+                        'Authorization': `Bearer ${process.env.FACECHECK_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 45000
+                }
+            );
+
             return res.json({
                 success: true,
-                message: 'Rosto escaneado e processado com sucesso!',
-                resultado: {
-                    perfil_encontrado: true,
-                    nome: 'Perfil Localizado',
-                    compatibilidade: '99%',
-                    redes_sociais: [
-                        { plataforma: 'Rede Social', url: '#' }
-                    ]
-                }
+                message: 'Busca biométrica realizada com sucesso!',
+                resultados: searchRes.data
             });
 
         } catch (error) {
             console.error(
-                'Erro no processamento facial:',
-                error.message
+                'Erro na API FaceCheck:',
+                error.response?.data || error.message
             );
 
             return res.status(500).json({
                 success: false,
-                error: 'Erro ao processar a imagem do rosto.'
+                error: error.response?.data?.error || 'Erro ao processar a busca no FaceCheck.'
             });
         }
     }
@@ -731,14 +643,9 @@ app.get('/api/status', (req, res) => {
     res.json({
         success: true,
         servidor: 'online',
-        mercado_pago:
-            Boolean(
-                process.env.MERCADOPAGO_TOKEN
-            ),
-        google:
-            Boolean(
-                process.env.GOOGLE_CLIENT_ID
-            )
+        mercado_pago: Boolean(process.env.MERCADOPAGO_TOKEN),
+        google: Boolean(process.env.GOOGLE_CLIENT_ID),
+        facecheck: Boolean(process.env.FACECHECK_API_KEY)
     });
 });
 
@@ -746,13 +653,13 @@ app.get('/api/status', (req, res) => {
    SERVIDOR
 ========================================================= */
 
-const PORT =
-    process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
     console.log('==========================================');
     console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
     console.log(`💳 Mercado Pago: ${process.env.MERCADOPAGO_TOKEN ? 'CONFIGURADO' : 'NÃO CONFIGURADO'}`);
     console.log(`🔐 Google: ${process.env.GOOGLE_CLIENT_ID ? 'CONFIGURADO' : 'NÃO CONFIGURADO'}`);
+    console.log(`🔍 FaceCheck: ${process.env.FACECHECK_API_KEY ? 'CONFIGURADO' : 'NÃO CONFIGURADO'}`);
     console.log('==========================================');
 });
