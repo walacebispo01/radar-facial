@@ -1,14 +1,15 @@
 require('dotenv').config();
+
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const axios = require('axios');
-const FormData = require('form-data');
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 const app = express();
+
 app.use(cors());
 app.use(express.json());
 
@@ -19,405 +20,940 @@ app.get('/', (req, res) => {
 app.use(express.static(__dirname));
 
 const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const upload = multer({ storage });
+
+/* =========================================================
+   MERCADO PAGO
+========================================================= */
+
+if (!process.env.MERCADOPAGO_TOKEN) {
+    console.warn('⚠️ MERCADOPAGO_TOKEN não configurado no .env');
+}
 
 const client = new MercadoPagoConfig({
     accessToken: process.env.MERCADOPAGO_TOKEN || ''
 });
+
 const payment = new Payment(client);
 
-const DATA_FILE = path.join(__dirname, 'data', 'radar-data.json');
+/* =========================================================
+   ARMAZENAMENTO
+========================================================= */
+
+const DATA_FILE = path.join(
+    __dirname,
+    'data',
+    'radar-data.json'
+);
 
 function carregarDadosPersistidos() {
     try {
-        if (!fs.existsSync(path.dirname(DATA_FILE))) {
-            fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
+        const pasta = path.dirname(DATA_FILE);
+
+        if (!fs.existsSync(pasta)) {
+            fs.mkdirSync(pasta, { recursive: true });
         }
-        if (fs.existsSync(DATA_FILE)) {
-            const raw = fs.readFileSync(DATA_FILE, 'utf8');
-            const parsed = JSON.parse(raw);
+
+        if (!fs.existsSync(DATA_FILE)) {
             return {
-                transacoes: parsed.transacoes || {},
-                usuariosCreditos: parsed.usuariosCreditos || {}
+                transacoes: {},
+                usuariosCreditos: {}
             };
         }
-    } catch (e) {
-        console.error("Erro ao carregar dados persistidos:", e.message);
-    }
-    return { transacoes: {}, usuariosCreditos: {} };
-}
 
-function salvarDadosPersistidos() {
-    try {
-        if (!fs.existsSync(path.dirname(DATA_FILE))) {
-            fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
+        const raw = fs.readFileSync(DATA_FILE, 'utf8');
+
+        if (!raw.trim()) {
+            return {
+                transacoes: {},
+                usuariosCreditos: {}
+            };
         }
-        const dataToSave = {
-            transacoes,
-            usuariosCreditos
+
+        const parsed = JSON.parse(raw);
+
+        return {
+            transacoes: parsed.transacoes || {},
+            usuariosCreditos: parsed.usuariosCreditos || {}
         };
-        fs.writeFileSync(DATA_FILE, JSON.stringify(dataToSave, null, 2), 'utf8');
-    } catch (e) {
-        console.error("Erro ao salvar dados persistidos:", e.message);
+
+    } catch (error) {
+        console.error(
+            'Erro ao carregar dados persistidos:',
+            error.message
+        );
+
+        return {
+            transacoes: {},
+            usuariosCreditos: {}
+        };
     }
 }
 
 const dbStorage = carregarDadosPersistidos();
+
 const transacoes = dbStorage.transacoes;
 const usuariosCreditos = dbStorage.usuariosCreditos;
 
-async function validarTokenGoogle(credential) {
-    if (!credential) return null;
+function salvarDadosPersistidos() {
     try {
-        const response = await axios.get(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`, {
-            timeout: 10000
-        });
-        const data = response.data;
-        if (data && data.email && (data.email_verified === true || data.email_verified === 'true')) {
-            if (process.env.GOOGLE_CLIENT_ID && data.aud !== process.env.GOOGLE_CLIENT_ID) {
-                console.error("Google Client ID não confere com o token.");
-                return null;
-            }
-            return data.email;
+        const pasta = path.dirname(DATA_FILE);
+
+        if (!fs.existsSync(pasta)) {
+            fs.mkdirSync(pasta, { recursive: true });
         }
-    } catch (e) {
-        console.error("Erro ao validar token Google:", e.message);
+
+        const data = {
+            transacoes,
+            usuariosCreditos
+        };
+
+        fs.writeFileSync(
+            DATA_FILE,
+            JSON.stringify(data, null, 2),
+            'utf8'
+        );
+
+    } catch (error) {
+        console.error(
+            'Erro ao salvar dados persistidos:',
+            error.message
+        );
+
+        throw error;
     }
-    return null;
 }
+
+/* =========================================================
+   GOOGLE
+========================================================= */
+
+async function validarTokenGoogle(credential) {
+    if (!credential) {
+        return null;
+    }
+
+    try {
+        const response = await axios.get(
+            'https://oauth2.googleapis.com/tokeninfo',
+            {
+                params: {
+                    id_token: credential
+                },
+                timeout: 10000
+            }
+        );
+
+        const data = response.data;
+
+        if (
+            !data ||
+            !data.email ||
+            !(
+                data.email_verified === true ||
+                data.email_verified === 'true'
+            )
+        ) {
+            return null;
+        }
+
+        if (
+            process.env.GOOGLE_CLIENT_ID &&
+            data.aud !== process.env.GOOGLE_CLIENT_ID
+        ) {
+            console.error(
+                'Google Client ID não confere com o token.'
+            );
+
+            return null;
+        }
+
+        return data.email.toLowerCase().trim();
+
+    } catch (error) {
+        console.error(
+            'Erro ao validar token Google:',
+            error.message
+        );
+
+        return null;
+    }
+}
+
+/* =========================================================
+   LOGIN GOOGLE
+========================================================= */
 
 app.post('/api/login-google', async (req, res) => {
     try {
-        const { email, credential } = req.body;
-        let emailValidado = null;
+        const { credential } = req.body;
 
-        if (credential) {
-            emailValidado = await validarTokenGoogle(credential);
+        if (!credential) {
+            return res.status(400).json({
+                success: false,
+                error: 'Token Google não informado.'
+            });
         }
 
-        if (!emailValidado && email) {
-            emailValidado = email;
-        }
+        const emailValidado =
+            await validarTokenGoogle(credential);
 
         if (!emailValidado) {
-            return res.status(400).json({ success: false, error: 'Autenticação Google inválida ou e-mail ausente.' });
+            return res.status(401).json({
+                success: false,
+                error: 'Autenticação Google inválida.'
+            });
         }
 
-        if (usuariosCreditos[emailValidado] === undefined) {
+        if (
+            usuariosCreditos[emailValidado] === undefined
+        ) {
             usuariosCreditos[emailValidado] = 0;
             salvarDadosPersistidos();
         }
 
-        res.json({ success: true, creditos: usuariosCreditos[emailValidado] });
+        return res.json({
+            success: true,
+            email: emailValidado,
+            creditos: usuariosCreditos[emailValidado]
+        });
+
     } catch (error) {
-        res.status(500).json({ success: false, error: 'Erro ao sincronizar usuário.' });
+        console.error(
+            'Erro no login Google:',
+            error.message
+        );
+
+        return res.status(500).json({
+            success: false,
+            error: 'Erro ao sincronizar usuário.'
+        });
     }
 });
+
+/* =========================================================
+   CRIAR PIX
+========================================================= */
 
 app.post('/api/criar-pix', async (req, res) => {
     try {
-        const { valor, plano, email, creditos, idempotencyKey } = req.body;
+        const {
+            valor,
+            plano,
+            email,
+            creditos
+        } = req.body;
+
         if (!email) {
-            return res.status(400).json({ success: false, error: 'E-mail do usuário é obrigatório para gerar o PIX.' });
-        }
-
-        const qtdCreditos = creditos || (plano === 'Pesquisa Única' ? 1 : (plano === 'Pacote Investigador' ? 10 : 40));
-        const valorNumerico = Number(valor || 24.99);
-
-        const body = {
-            transaction_amount: valorNumerico,
-            description: `Radar Facial - ${plano || 'Pacote de Buscas'}`,
-            payment_method_id: 'pix',
-            payer: { email: email }
-        };
-
-        const requestOptions = {};
-        if (idempotencyKey) {
-            requestOptions.headers = { 'X-Idempotency-Key': idempotencyKey };
-        }
-
-        const result = await payment.create({ body, requestOptions });
-
-        transacoes[result.id] = {
-            status: result.status || 'pending',
-            email: email,
-            buscas_restantes: qtdCreditos,
-            criado_em: new Date(),
-            credited: false
-        };
-        salvarDadosPersistidos();
-
-        console.log(`[PIX CRIADO] ID: ${result.id} | Email: ${email} | Créditos: ${qtdCreditos}`);
-
-        res.json({
-            success: true,
-            transaction_id: result.id,
-            qr_code: result.point_of_interaction?.transaction_data?.qr_code,
-            qr_code_base64: result.point_of_interaction?.transaction_data?.qr_code_base64
-        });
-    } catch (error) {
-        console.error('Erro ao criar PIX:', error.message);
-        res.status(500).json({ success: false, error: 'Erro ao gerar o pagamento via PIX.' });
-    }
-});
-
-app.post('/api/verificar-pix', async (req, res) => {
-    try {
-        const { email, transaction_id } = req.body;
-        let aprovado = false;
-
-        if (transaction_id && transacoes[transaction_id]) {
-            try {
-                const mpCheck = await payment.get({ id: transaction_id });
-                const currentStatus = mpCheck.status;
-                transacoes[transaction_id].status = currentStatus;
-
-                console.log(`[VERIFICAR PIX] Transação ID: ${transaction_id} | Status MP: ${currentStatus} | Credited: ${transacoes[transaction_id].credited}`);
-
-                if (currentStatus === 'approved' && !transacoes[transaction_id].credited) {
-                    transacoes[transaction_id].credited = true;
-                    const qtdAdicionar = transacoes[transaction_id].buscas_restantes || 0;
-                    const targetEmail = transacoes[transaction_id].email || email;
-                    if (targetEmail) {
-                        const antes = usuariosCreditos[targetEmail] || 0;
-                        console.log(`[CRÉDITO ADICIONADO - VERIFICAR PIX] Antes: ${antes} | Adicionando: ${qtdAdicionar}`);
-                        usuariosCreditos[targetEmail] = antes + qtdAdicionar;
-                        console.log(`[CRÉDITO ADICIONADO - VERIFICAR PIX] Depois: ${usuariosCreditos[targetEmail]}`);
-                    }
-                    aprovado = true;
-                    salvarDadosPersistidos();
-                } else if (currentStatus === 'approved' && transacoes[transaction_id].credited) {
-                    aprovado = true;
-                }
-            } catch (e) {
-                console.error('Erro ao consultar MP na verificação:', e.message);
-            }
-        }
-
-        const userKey = email || (transaction_id && transacoes[transaction_id]?.email);
-        const saldoAtual = userKey ? (usuariosCreditos[userKey] || 0) : 0;
-
-        res.json({ success: true, pago: aprovado, creditos: saldoAtual });
-    } catch (error) {
-        res.status(500).json({ success: false, error: 'Erro ao verificar pagamento.' });
-    }
-});
-
-app.post('/api/mercadopago-webhook', async (req, res) => {
-    try {
-        const queryData = req.query;
-        const bodyData = req.body;
-
-        res.status(200).send('OK');
-
-        let paymentId = null;
-        if (queryData && (queryData['data.id'] || queryData.id)) {
-            paymentId = queryData['data.id'] || queryData.id;
-        } else if (bodyData) {
-            if (bodyData.data && bodyData.data.id) {
-                paymentId = bodyData.data.id;
-            } else if (bodyData.id) {
-                paymentId = bodyData.id;
-            }
-        }
-
-        if (!paymentId) return;
-
-        const mpCheck = await payment.get({ id: paymentId });
-        const currentStatus = mpCheck.status;
-
-        console.log(`[WEBHOOK] Payment ID: ${paymentId} | Status: ${currentStatus}`);
-
-        if (transacoes[paymentId]) {
-            transacoes[paymentId].status = currentStatus;
-            if (currentStatus === 'approved' && !transacoes[paymentId].credited) {
-                transacoes[paymentId].credited = true;
-                const qtdAdicionar = transacoes[paymentId].buscas_restantes || 0;
-                const targetEmail = transacoes[paymentId].email;
-                if (targetEmail) {
-                    const antes = usuariosCreditos[targetEmail] || 0;
-                    console.log(`[CRÉDITO ADICIONADO - WEBHOOK] Antes: ${antes} | Adicionando: ${qtdAdicionar}`);
-                    usuariosCreditos[targetEmail] = antes + qtdAdicionar;
-                    console.log(`[CRÉDITO ADICIONADO - WEBHOOK] Depois: ${usuariosCreditos[targetEmail]}`);
-                    salvarDadosPersistidos();
-                }
-            }
-        } else {
-            if (currentStatus === 'approved') {
-                const payerEmail = mpCheck.payer?.email || mpCheck.metadata?.email;
-                const externalRef = mpCheck.external_reference;
-                const qtdAdicionar = Number(mpCheck.metadata?.creditos || externalRef || 1);
-                if (payerEmail) {
-                    if (!transacoes[paymentId] || !transacoes[paymentId].credited) {
-                        transacoes[paymentId] = {
-                            status: 'approved',
-                            email: payerEmail,
-                            buscas_restantes: qtdAdicionar,
-                            criado_em: new Date(),
-                            credited: true
-                        };
-                        const antes = usuariosCreditos[payerEmail] || 0;
-                        console.log(`[CRÉDITO ADICIONADO - WEBHOOK NOVO] Antes: ${antes} | Adicionando: ${qtdAdicionar}`);
-                        usuariosCreditos[payerEmail] = antes + qtdAdicionar;
-                        console.log(`[CRÉDITO ADICIONADO - WEBHOOK NOVO] Depois: ${usuariosCreditos[payerEmail]}`);
-                        salvarDadosPersistidos();
-                    }
-                }
-            }
-        }
-    } catch (error) {
-        console.error('Erro no processamento do webhook:', error.message);
-    }
-});
-
-app.post('/api/descontar-credito', async (req, res) => {
-    try {
-        const { email } = req.body;
-        if (!email) {
-            return res.status(400).json({ success: false, error: 'E-mail obrigatório.' });
-        }
-
-        const saldoAtual = usuariosCreditos[email] || 0;
-        console.log(`[CRÉDITO ANTES - DESCONTAR] Usuário: ${email} | Saldo: ${saldoAtual}`);
-        
-        if (saldoAtual > 0) {
-            usuariosCreditos[email] = saldoAtual - 1;
-            salvarDadosPersistidos();
-            console.log(`[CRÉDITO DEPOIS - DESCONTAR] Usuário: ${email} | Saldo: ${usuariosCreditos[email]}`);
-            return res.json({ success: true, creditos: usuariosCreditos[email] });
-        } else {
-            return res.status(403).json({ success: false, error: 'Créditos esgotados.' });
-        }
-    } catch (error) {
-        console.error('Erro ao descontar crédito:', error.message);
-        res.status(500).json({ success: false, error: 'Erro ao descontar crédito.' });
-    }
-});
-
-app.post('/api/escanear-rosto', upload.single('imagem'), async (req, res) => {
-    let creditosConsumidos = false;
-    const { email } = req.body;
-    const userKey = email;
-
-    try {
-        if (!userKey) {
-            return res.status(400).json({ sucesso: false, error: 'E-mail do usuário não informado.' });
-        }
-
-        const saldoAntes = usuariosCreditos[userKey] || 0;
-        console.log(`[CRÉDITO ANTES - ESCANEAR] Usuário: ${userKey} | Saldo: ${saldoAntes}`);
-
-        if (saldoAntes < 1) {
-            return res.status(403).json({ sucesso: false, error: 'Créditos do Radar Facial insuficientes.' });
-        }
-
-        usuariosCreditos[userKey] = saldoAntes - 1;
-        creditosConsumidos = true;
-        salvarDadosPersistidos();
-        console.log(`[CRÉDITO DEPOIS - ESCANEAR] Usuário: ${userKey} | Saldo: ${usuariosCreditos[userKey]}`);
-
-        if (!req.file) {
-            if (creditosConsumidos) {
-                usuariosCreditos[userKey] = (usuariosCreditos[userKey] || 0) + 1;
-                salvarDadosPersistidos();
-                console.log(`[CRÉDITO ESTORNADO - SEM IMAGEM] Saldo restaurado para: ${usuariosCreditos[userKey]}`);
-            }
-            return res.status(400).json({ sucesso: false, error: 'Nenhuma imagem enviada.' });
-        }
-
-        const formDataUpload = new FormData();
-        formDataUpload.append('images', req.file.buffer, { 
-            filename: 'rosto.jpg', 
-            contentType: req.file.mimetype || 'image/jpeg' 
-        });
-
-        const uploadRes = await axios.post('https://facecheck.id/api/v1/upload_pic', formDataUpload, {
-            headers: {
-                ...formDataUpload.getHeaders(),
-                'Authorization': process.env.FACECHECK_API_KEY
-            },
-            timeout: 30000
-        });
-
-        const idSearch = uploadRes.data.id_search || uploadRes.data.id;
-        if (!idSearch) {
-            return res.json({
-                sucesso: true,
-                buscas_restantes: usuariosCreditos[userKey] || 0,
-                mensagem: 'Nenhum resultado encontrado.',
-                perfis_encontrados: []
+            return res.status(400).json({
+                success: false,
+                error: 'E-mail do usuário é obrigatório.'
             });
         }
 
-        let dadosRetorno = null;
-        let tentativas = 0;
-        const maxTentativas = 6;
-
-        while (tentativas < maxTentativas) {
-            await new Promise(resolve => setTimeout(resolve, 3000));
-            try {
-                const searchRes = await axios.post('https://facecheck.id/api/v1/search', {
-                    id_search: idSearch,
-                    id: idSearch,
-                    testing_mode: false 
-                }, {
-                    headers: {
-                        'Authorization': process.env.FACECHECK_API_KEY,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 15000
-                });
-
-                if (searchRes.data) {
-                    dadosRetorno = searchRes.data;
-                    const itemsList = dadosRetorno?.output?.items || dadosRetorno?.items || [];
-                    if (itemsList.length > 0 || dadosRetorno.status === 'completed') {
-                        break;
-                    }
-                }
-            } catch (pollErr) {
-                // Continua tentando em caso de instabilidade pontual no polling
-            }
-            tentativas++;
+        if (!process.env.MERCADOPAGO_TOKEN) {
+            return res.status(500).json({
+                success: false,
+                error: 'Mercado Pago não configurado no servidor.'
+            });
         }
 
-        const itensBrutos = dadosRetorno?.output?.items || dadosRetorno?.items || dadosRetorno?.output || dadosRetorno?.results || [];
+        const emailNormalizado =
+            String(email).toLowerCase().trim();
 
-        const perfisMapeados = itensBrutos.map(item => {
-            let urlFinal = item.url || item.link || item.profileUrl || item.weburl;
-            if (!urlFinal && item.username) {
-                urlFinal = `https://instagram.com/${item.username.replace('@', '')}`;
+        let qtdCreditos = Number(creditos);
+
+        if (!Number.isFinite(qtdCreditos)) {
+            if (plano === 'Pesquisa Única') {
+                qtdCreditos = 1;
+            } else if (plano === 'Pacote Investigador') {
+                qtdCreditos = 10;
+            } else {
+                qtdCreditos = 40;
             }
-            return {
-                title: item.title || item.username || item.description || "Perfil Encontrado",
-                url: urlFinal || "",
-                score: item.score || item.similarity || 0,
-                image: item.image || item.img || null
-            };
-        }).filter(item => item.url);
+        }
 
-        res.json({
-            sucesso: true,
-            buscas_restantes: usuariosCreditos[userKey] || 0,
-            mensagem: 'Escaneamento biométrico concluído com sucesso.',
-            perfis_encontrados: perfisMapeados
+        const valorNumerico = Number(valor);
+
+        if (
+            !Number.isFinite(valorNumerico) ||
+            valorNumerico <= 0
+        ) {
+            return res.status(400).json({
+                success: false,
+                error: 'Valor do pagamento inválido.'
+            });
+        }
+
+        if (
+            !Number.isInteger(qtdCreditos) ||
+            qtdCreditos <= 0
+        ) {
+            return res.status(400).json({
+                success: false,
+                error: 'Quantidade de créditos inválida.'
+            });
+        }
+
+        /*
+         * A chave é criada no backend.
+         * Não dependemos de uma chave enviada
+         * pelo navegador.
+         */
+        const idempotencyKey =
+            `pix_${Date.now()}_${Math.random()
+                .toString(36)
+                .slice(2, 12)}`;
+
+        const body = {
+            transaction_amount:
+                Number(valorNumerico.toFixed(2)),
+
+            description:
+                `Radar Facial - ${
+                    plano || 'Pacote de Créditos'
+                }`,
+
+            payment_method_id: 'pix',
+
+            payer: {
+                email: emailNormalizado
+            },
+
+            metadata: {
+                email: emailNormalizado,
+                creditos: qtdCreditos,
+                plano: plano || 'Pacote de Créditos'
+            }
+        };
+
+        console.log(
+            '[PIX] Criando pagamento:',
+            JSON.stringify(body, null, 2)
+        );
+
+        const result = await payment.create({
+            body,
+
+            requestOptions: {
+                idempotencyKey
+            }
+        });
+
+        console.log(
+            '[PIX] Resposta Mercado Pago:',
+            JSON.stringify(result, null, 2)
+        );
+
+        if (!result || !result.id) {
+            return res.status(502).json({
+                success: false,
+                error:
+                    'Mercado Pago não retornou o ID do pagamento.'
+            });
+        }
+
+        const transactionData =
+            result.point_of_interaction
+                ?.transaction_data || {};
+
+        const qrCode =
+            transactionData.qr_code || null;
+
+        const qrCodeBase64 =
+            transactionData.qr_code_base64 || null;
+
+        const ticketUrl =
+            transactionData.ticket_url || null;
+
+        /*
+         * Guarda a transação ANTES de responder ao frontend.
+         */
+        transacoes[String(result.id)] = {
+            status: result.status || 'pending',
+
+            status_detail:
+                result.status_detail || null,
+
+            email: emailNormalizado,
+
+            buscas_restantes: qtdCreditos,
+
+            criado_em:
+                new Date().toISOString(),
+
+            credited: false,
+
+            idempotency_key:
+                idempotencyKey
+        };
+
+        salvarDadosPersistidos();
+
+        console.log(
+            `[PIX CRIADO] ID=${result.id} | ` +
+            `EMAIL=${emailNormalizado} | ` +
+            `CRÉDITOS=${qtdCreditos} | ` +
+            `STATUS=${result.status}`
+        );
+
+        /*
+         * Se nenhum dado do PIX veio do MP,
+         * não fingimos que o QR foi criado.
+         */
+        if (
+            !qrCode &&
+            !qrCodeBase64 &&
+            !ticketUrl
+        ) {
+            console.error(
+                '[PIX] Pagamento criado, mas Mercado Pago não retornou dados do PIX.'
+            );
+
+            return res.status(502).json({
+                success: false,
+                error:
+                    'O pagamento foi criado, mas o Mercado Pago não retornou o QR Code.',
+                transaction_id: String(result.id)
+            });
+        }
+
+        return res.json({
+            success: true,
+
+            transaction_id:
+                String(result.id),
+
+            status:
+                result.status || 'pending',
+
+            status_detail:
+                result.status_detail || null,
+
+            qr_code:
+                qrCode,
+
+            qr_code_base64:
+                qrCodeBase64,
+
+            ticket_url:
+                ticketUrl,
+
+            transaction_data: {
+                qr_code:
+                    qrCode,
+
+                qr_code_base64:
+                    qrCodeBase64,
+
+                ticket_url:
+                    ticketUrl
+            }
         });
 
     } catch (error) {
-        if (creditosConsumidos && userKey) {
-            usuariosCreditos[userKey] = (usuariosCreditos[userKey] || 0) + 1;
-            salvarDadosPersistidos();
-            console.log(`[CRÉDITO ESTORNADO - ERRO API] Saldo restaurado para: ${usuariosCreditos[userKey]}`);
-        }
-        console.error('Erro detalhado FaceCheck:', error.response?.data || error.message);
-        res.status(500).json({
-            sucesso: false,
-            error: 'Erro ao conectar com a API FaceCheck: ' + (error.response?.data?.error || error.message)
+        console.error(
+            '===================================='
+        );
+
+        console.error(
+            'ERRO AO CRIAR PIX'
+        );
+
+        console.error(
+            error.response?.data ||
+            error.message ||
+            error
+        );
+
+        console.error(
+            '===================================='
+        );
+
+        return res.status(500).json({
+            success: false,
+
+            error:
+                error.response?.data?.message ||
+                error.response?.data?.error ||
+                error.message ||
+                'Erro ao gerar o pagamento via PIX.'
         });
     }
 });
 
-const PORT = process.env.PORT || 3000;
+/* =========================================================
+   VERIFICAR PIX
+========================================================= */
+
+app.post('/api/verificar-pix', async (req, res) => {
+    try {
+        const {
+            transaction_id
+        } = req.body;
+
+        if (!transaction_id) {
+            return res.status(400).json({
+                success: false,
+                error: 'ID da transação não informado.'
+            });
+        }
+
+        const transaction =
+            transacoes[String(transaction_id)];
+
+        if (!transaction) {
+            return res.status(404).json({
+                success: false,
+                error: 'Transação não encontrada.'
+            });
+        }
+
+        const mpCheck =
+            await payment.get({
+                id: String(transaction_id)
+            });
+
+        const currentStatus =
+            mpCheck.status;
+
+        transaction.status =
+            currentStatus;
+
+        transaction.status_detail =
+            mpCheck.status_detail || null;
+
+        console.log(
+            `[VERIFICAR PIX] ID=${transaction_id} | ` +
+            `STATUS=${currentStatus} | ` +
+            `CREDITED=${transaction.credited}`
+        );
+
+        let pago = false;
+
+        if (currentStatus === 'approved') {
+            pago = true;
+
+            /*
+             * CRÉDITO IDEMPOTENTE
+             *
+             * Se já foi creditado, não adiciona novamente.
+             */
+            if (!transaction.credited) {
+
+                const email =
+                    transaction.email;
+
+                const quantidade =
+                    Number(
+                        transaction.buscas_restantes || 0
+                    );
+
+                if (
+                    email &&
+                    quantidade > 0
+                ) {
+                    const antes =
+                        Number(
+                            usuariosCreditos[email] || 0
+                        );
+
+                    usuariosCreditos[email] =
+                        antes + quantidade;
+
+                    transaction.credited =
+                        true;
+
+                    transaction.credited_em =
+                        new Date().toISOString();
+
+                    salvarDadosPersistidos();
+
+                    console.log(
+                        `[CRÉDITO] ${email} | ` +
+                        `Antes=${antes} | ` +
+                        `Adicionado=${quantidade} | ` +
+                        `Depois=${usuariosCreditos[email]}`
+                    );
+                }
+            }
+        }
+
+        const email =
+            transaction.email;
+
+        const saldo =
+            email
+                ? Number(
+                    usuariosCreditos[email] || 0
+                )
+                : 0;
+
+        return res.json({
+            success: true,
+
+            pago,
+
+            status:
+                currentStatus,
+
+            creditos:
+                saldo,
+
+            transaction_id:
+                String(transaction_id)
+        });
+
+    } catch (error) {
+        console.error(
+            'Erro ao verificar PIX:',
+            error.response?.data ||
+            error.message
+        );
+
+        return res.status(500).json({
+            success: false,
+            error: 'Erro ao verificar pagamento.'
+        });
+    }
+});
+
+/* =========================================================
+   WEBHOOK MERCADO PAGO
+========================================================= */
+
+app.post('/api/mercadopago-webhook', async (req, res) => {
+
+    /*
+     * Responde rapidamente ao Mercado Pago.
+     */
+    res.sendStatus(200);
+
+    try {
+        const queryData =
+            req.query || {};
+
+        const bodyData =
+            req.body || {};
+
+        let paymentId = null;
+
+        if (
+            queryData['data.id']
+        ) {
+            paymentId =
+                queryData['data.id'];
+        }
+
+        if (
+            !paymentId &&
+            queryData.id
+        ) {
+            paymentId =
+                queryData.id;
+        }
+
+        if (
+            !paymentId &&
+            bodyData.data?.id
+        ) {
+            paymentId =
+                bodyData.data.id;
+        }
+
+        if (
+            !paymentId &&
+            bodyData.id
+        ) {
+            paymentId =
+                bodyData.id;
+        }
+
+        if (!paymentId) {
+            console.log(
+                '[WEBHOOK] Notificação sem payment ID.'
+            );
+
+            return;
+        }
+
+        const mpCheck =
+            await payment.get({
+                id: String(paymentId)
+            });
+
+        const currentStatus =
+            mpCheck.status;
+
+        console.log(
+            `[WEBHOOK] ID=${paymentId} | STATUS=${currentStatus}`
+        );
+
+        const transaction =
+            transacoes[String(paymentId)];
+
+        /*
+         * Só processamos pagamentos que
+         * foram criados pelo nosso sistema.
+         */
+        if (!transaction) {
+            console.log(
+                `[WEBHOOK] Transação ${paymentId} não encontrada localmente.`
+            );
+
+            return;
+        }
+
+        transaction.status =
+            currentStatus;
+
+        transaction.status_detail =
+            mpCheck.status_detail || null;
+
+        if (
+            currentStatus !== 'approved'
+        ) {
+            salvarDadosPersistidos();
+            return;
+        }
+
+        /*
+         * Proteção contra webhook duplicado.
+         */
+        if (transaction.credited) {
+            console.log(
+                `[WEBHOOK] ${paymentId} já foi creditado. Ignorando duplicação.`
+            );
+
+            salvarDadosPersistidos();
+
+            return;
+        }
+
+        const email =
+            transaction.email;
+
+        const quantidade =
+            Number(
+                transaction.buscas_restantes || 0
+            );
+
+        if (
+            !email ||
+            quantidade <= 0
+        ) {
+            console.error(
+                `[WEBHOOK] Dados inválidos para ${paymentId}.`
+            );
+
+            return;
+        }
+
+        const antes =
+            Number(
+                usuariosCreditos[email] || 0
+            );
+
+        usuariosCreditos[email] =
+            antes + quantidade;
+
+        transaction.credited =
+            true;
+
+        transaction.credited_em =
+            new Date().toISOString();
+
+        salvarDadosPersistidos();
+
+        console.log(
+            `[WEBHOOK CRÉDITO] ${email} | ` +
+            `Antes=${antes} | ` +
+            `Adicionado=${quantidade} | ` +
+            `Depois=${usuariosCreditos[email]}`
+        );
+
+    } catch (error) {
+
+        console.error(
+            '[WEBHOOK] Erro:',
+            error.response?.data ||
+            error.message ||
+            error
+        );
+    }
+});
+
+/* =========================================================
+   DESCONTAR CRÉDITO
+========================================================= */
+
+app.post('/api/descontar-credito', async (req, res) => {
+    try {
+        const {
+            email
+        } = req.body;
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                error: 'E-mail obrigatório.'
+            });
+        }
+
+        const emailNormalizado =
+            String(email)
+                .toLowerCase()
+                .trim();
+
+        const saldo =
+            Number(
+                usuariosCreditos[emailNormalizado] || 0
+            );
+
+        console.log(
+            `[DESCONTO] ${emailNormalizado} | Antes=${saldo}`
+        );
+
+        if (saldo <= 0) {
+            return res.status(403).json({
+                success: false,
+                error: 'Créditos esgotados.',
+                creditos: 0
+            });
+        }
+
+        usuariosCreditos[emailNormalizado] =
+            saldo - 1;
+
+        salvarDadosPersistidos();
+
+        console.log(
+            `[DESCONTO] ${emailNormalizado} | ` +
+            `Depois=${usuariosCreditos[emailNormalizado]}`
+        );
+
+        return res.json({
+            success: true,
+            creditos:
+                usuariosCreditos[emailNormalizado]
+        });
+
+    } catch (error) {
+        console.error(
+            'Erro ao descontar crédito:',
+            error.message
+        );
+
+        return res.status(500).json({
+            success: false,
+            error: 'Erro ao descontar crédito.'
+        });
+    }
+});
+
+/* =========================================================
+   PROCESSAMENTO DE IMAGEM
+========================================================= */
+
+/*
+ * Mantido como endpoint de upload genérico.
+ *
+ * A implementação de identificação biométrica/
+ * associação de uma pessoa a perfis sociais não é
+ * incluída aqui.
+ */
+
+app.post(
+    '/api/escanear-rosto',
+    upload.single('imagem'),
+    async (req, res) => {
+
+        try {
+
+            if (!req.file) {
+                return res.status(400).json({
+                    sucesso: false,
+                    error: 'Nenhuma imagem enviada.'
+                });
+            }
+
+            return res.status(501).json({
+                sucesso: false,
+                error:
+                    'Processamento biométrico não está implementado neste endpoint.'
+            });
+
+        } catch (error) {
+
+            console.error(
+                'Erro no processamento:',
+                error.message
+            );
+
+            return res.status(500).json({
+                sucesso: false,
+                error:
+                    'Erro ao processar a solicitação.'
+            });
+        }
+    }
+);
+
+/* =========================================================
+   ROTA DE TESTE
+========================================================= */
+
+app.get('/api/status', (req, res) => {
+
+    res.json({
+        success: true,
+        servidor: 'online',
+        mercado_pago:
+            Boolean(
+                process.env.MERCADOPAGO_TOKEN
+            ),
+        google:
+            Boolean(
+                process.env.GOOGLE_CLIENT_ID
+            )
+    });
+
+});
+
+/* =========================================================
+   SERVIDOR
+========================================================= */
+
+const PORT =
+    process.env.PORT || 3000;
+
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor Radar Facial rodando perfeitamente em: http://localhost:${PORT}`);
+
+    console.log(
+        '=========================================='
+    );
+
+    console.log(
+        `🚀 Servidor rodando em http://localhost:${PORT}`
+    );
+
+    console.log(
+        `💳 Mercado Pago: ${
+            process.env.MERCADOPAGO_TOKEN
+                ? 'CONFIGURADO'
+                : 'NÃO CONFIGURADO'
+        }`
+    );
+
+    console.log(
+        `🔐 Google: ${
+            process.env.GOOGLE_CLIENT_ID
+                ? 'CONFIGURADO'
+                : 'NÃO CONFIGURADO'
+        }`
+    );
+
+    console.log(
+        '=========================================='
+    );
 });
