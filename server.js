@@ -581,44 +581,67 @@ app.post(
             console.log('[FACECHECK] Enviando imagem para upload na API...');
 
             const uploadRes = await axios.post(
-                'https://facecheck.id/api/v1/upload_pix',
+                'https://facecheck.id/api/v1/upload_pic',
                 uploadForm,
                 {
                     headers: {
                         ...uploadForm.getHeaders(),
-                        'Authorization': `Bearer ${process.env.FACECHECK_API_KEY}`
+                        'Authorization': process.env.FACECHECK_API_KEY
                     },
                     timeout: 30000
                 }
             );
 
-            const idSearch = uploadRes.data.id_search || uploadRes.data.id;
+            if (!uploadRes.data || uploadRes.data.error) {
+                return res.status(502).json({
+                    success: false,
+                    error: uploadRes.data?.error || 'Erro no upload da imagem para o FaceCheck.'
+                });
+            }
+
+            const idSearch = uploadRes.data.id_search;
 
             if (!idSearch) {
                 return res.status(502).json({
                     success: false,
-                    error: 'FaceCheck não retornou o identificador da busca.'
+                    error: 'FaceCheck não retornou o identificador da busca (id_search).'
                 });
             }
 
             console.log(`[FACECHECK] ID gerado: ${idSearch}. Consultando resultados...`);
 
-            const searchRes = await axios.post(
-                'https://facecheck.id/api/v1/search',
-                { id_search: idSearch },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${process.env.FACECHECK_API_KEY}`,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 45000
+            let searchResultData = null;
+            const maxTentativas = 10;
+            let tentativa = 0;
+
+            while (tentativa < maxTentativas) {
+                tentativa++;
+                
+                const searchRes = await axios.post(
+                    'https://facecheck.id/api/v1/search',
+                    { id_search: idSearch },
+                    {
+                        headers: {
+                            'Authorization': process.env.FACECHECK_API_KEY,
+                            'Content-Type': 'application/json'
+                        },
+                        timeout: 45000
+                    }
+                );
+
+                searchResultData = searchRes.data;
+
+                if (searchResultData && (searchResultData.output || searchResultData.results || searchResultData.code === 200)) {
+                    break;
                 }
-            );
+
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
 
             return res.json({
                 success: true,
                 message: 'Busca biométrica realizada com sucesso!',
-                resultados: searchRes.data
+                resultados: searchResultData
             });
 
         } catch (error) {
