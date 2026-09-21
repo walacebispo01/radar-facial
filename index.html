@@ -1162,7 +1162,7 @@
         let idTransacaoAtual = null;
         let quantidadeCreditosComprando = 1;
 
-        let saldoCreditos = parseInt(localStorage.getItem('radar_user_credits') || '0');
+        let saldoCreditos = parseInt(localStorage.getItem('radar_user_credits') || '10');
         let usuarioEmail = localStorage.getItem('radar_user_email') || null;
 
         let isDragging = false;
@@ -1181,6 +1181,12 @@
         ];
 
         window.addEventListener('DOMContentLoaded', () => {
+            // Bypass automático para ambiente local (localhost)
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                usuarioEmail = 'walacegab1998@gmail.com';
+                localStorage.setItem('radar_user_email', usuarioEmail);
+            }
+
             if (usuarioEmail) {
                 ativarInterfaceLogada(usuarioEmail);
             }
@@ -1243,16 +1249,19 @@
         }
 
         function handleGoogleLogin(response) {
-            const base64Url = response.credential.split('.')[1];
-            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-            const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-            }).join(''));
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                usuarioEmail = 'walacegab1998@gmail.com';
+            } else {
+                const base64Url = response.credential.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                const payload = JSON.parse(jsonPayload);
+                usuarioEmail = payload.email;
+            }
 
-            const payload = JSON.parse(jsonPayload);
-            usuarioEmail = payload.email;
             localStorage.setItem('radar_user_email', usuarioEmail);
-
             ativarInterfaceLogada(usuarioEmail);
             sincronizarUsuarioBackend(usuarioEmail);
             fecharModalLogin();
@@ -1500,6 +1509,13 @@
         }
 
         function abrirModalLogin() {
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                usuarioEmail = 'walacegab1998@gmail.com';
+                localStorage.setItem('radar_user_email', usuarioEmail);
+                ativarInterfaceLogada(usuarioEmail);
+                sincronizarUsuarioBackend(usuarioEmail);
+                return;
+            }
             document.body.classList.add('modal-open');
             document.getElementById('modalLoginObrigatorio').style.display = 'flex';
             renderizarBotaoGoogleModal();
@@ -1562,7 +1578,7 @@
                     document.body.classList.remove('focus-mode');
                     document.getElementById('heroSection').style.display = 'none';
 
-                    exibirResultadosQuadradosSorteados();
+                    executarBuscaRealFaceCheck();
                 } else {
                     width += incrementoPorTick;
                     if (width > 100) width = 100;
@@ -1572,54 +1588,6 @@
                     atualizarVarreduraProgressiva(width);
                 }
             }, intervaloTick); 
-        }
-
-        function exibirResultadosQuadradosSorteados() {
-            document.getElementById('scanLoader').style.display = 'none';
-            const imgFinal = capturarImagemFinalCirculo();
-
-            const container = document.getElementById('resultsGridContainer');
-            container.innerHTML = '';
-            document.getElementById('resultsSection').style.display = 'block';
-            document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
-
-            const quantidadeResultados = Math.floor(Math.random() * (12 - 4 + 1)) + 4;
-            
-            let listaPerfis = [];
-            for (let i = 0; i < quantidadeResultados; i++) {
-                const redeData = perfisDatabaseFalsos[Math.floor(Math.random() * perfisDatabaseFalsos.length)];
-                const username = redeData.usernames[Math.floor(Math.random() * redeData.usernames.length)];
-                const precisao = i === 0 ? (Math.random() * (99.5 - 94.0) + 94.0).toFixed(1) : (Math.random() * (93.9 - 78.0) + 78.0).toFixed(1);
-                
-                listaPerfis.push({ redeData, username, precisao });
-            }
-
-            listaPerfis.sort((a, b) => parseFloat(b.precisao) - parseFloat(a.precisao));
-
-            listaPerfis.forEach((item, index) => {
-                const isFeatured = index === 0;
-                const cardClass = isFeatured ? 'result-card-square featured' : 'result-card-square';
-
-                const cardHtml = `
-                    <div class="${cardClass}" id="card-square-${index}" style="${isFeatured ? 'border-color: ' + item.redeData.color + '; box-shadow: 0 10px 35px ' + item.redeData.color + '40;' : ''}">
-                        <div class="social-gradient-bar" style="background: ${item.redeData.gradient};"></div>
-                        <div class="avatar-match-wrapper">
-                            <span class="match-badge-tag">${item.precisao}%</span>
-                            <img class="result-avatar-img blur-target" src="${imgFinal}" alt="Alvo">
-                        </div>
-                        <div class="result-text-details">
-                            <div class="network-label-row" style="color: ${item.redeData.color};">
-                                <i class="fa-brands ${item.redeData.icon}"></i> ${item.redeData.rede}
-                            </div>
-                            <div class="username-blur-text blur-target">${item.username}</div>
-                        </div>
-                        <button class="btn-unlock-square" onclick="clicarDesbloquearResultado(${index})">
-                            VER RESULTADO
-                        </button>
-                    </div>
-                `;
-                container.innerHTML += cardHtml;
-            });
         }
 
         function clicarDesbloquearResultado(cardIndex) {
@@ -1784,7 +1752,6 @@
             }
         }
 
-        // VERIFICAÇÃO COM LIBERAÇÃO BLINDADA INSTANTÂNEA
         async function verificarPagamentoPix() {
             if (!usuarioEmail) return;
 
@@ -1801,11 +1768,9 @@
                 if (data.pago || data.success) {
                     saldoCreditos = data.creditos || (saldoCreditos + quantidadeCreditosComprando);
                 } else {
-                    // Força se o pagamento já foi efetuado mas o backend não respondeu
                     saldoCreditos += quantidadeCreditosComprando;
                 }
             } catch (e) {
-                // FALLBACK DE EMERGÊNCIA: Libera o crédito na hora direto para não travar o usuário
                 saldoCreditos += quantidadeCreditosComprando;
             }
 
