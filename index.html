@@ -59,8 +59,8 @@
         }
 
         body.focus-mode .orbit-container {
-            width: 340px;
-            height: 340px;
+            width: 360px;
+            height: 360px;
             transform: scale(1.15);
             transition: transform 0.4s ease;
         }
@@ -231,6 +231,48 @@
             transition: all 0.4s ease;
         }
 
+        /* LOGO E NOME FLutuante no Topo do Círculo durante a Varredura */
+        .scan-brand-header {
+            position: absolute;
+            top: -55px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            align-items: center;
+            gap: 10px;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(245, 158, 11, 0.4);
+            padding: 6px 16px;
+            border-radius: 30px;
+            box-shadow: 0 0 20px var(--gold-glow);
+            z-index: 30;
+            backdrop-filter: blur(10px);
+            white-space: nowrap;
+        }
+
+        .scan-brand-header .logo-icon-mini {
+            width: 28px;
+            height: 28px;
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--gold);
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 0.9rem;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .scan-brand-header span {
+            font-weight: 900;
+            font-size: 1.1rem;
+            letter-spacing: -0.5px;
+            text-transform: lowercase;
+            background: var(--gold-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
         .orbit-ring {
             position: absolute;
             width: 260px;
@@ -347,12 +389,11 @@
             position: absolute;
             width: 4px;
             height: 4px;
-            background: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.25);
             border-radius: 50%;
             transition: all 0.3s ease;
         }
 
-        /* Classe ativada conforme o laser passa por cima do ponto */
         .mesh-dot.active {
             background: #ffffff;
             box-shadow: 0 0 10px #ffffff, 0 0 16px #00f2fe;
@@ -367,7 +408,7 @@
         }
 
         .mesh-line {
-            stroke: rgba(0, 242, 254, 0.15);
+            stroke: rgba(0, 242, 254, 0.1);
             stroke-width: 0.8;
             stroke-dasharray: 2, 2;
             transition: stroke 0.3s ease;
@@ -859,7 +900,6 @@
                     <i class="fa-solid fa-coins"></i> Saldo: <span id="userCreditsCount">0</span> pesquisas
                 </div>
                 
-                <!-- Botão do Google no Topo configurado no tema escuro -->
                 <div id="googleLoginWrapper">
                     <div id="g_id_onload"
                          data-client_id="463131098345-iead7l2q9h6fgi6c36eq94ou04kmfbj3.apps.googleusercontent.com"
@@ -889,6 +929,14 @@
             <p>Mapeamento biométrico cruzado em tempo real em redes sociais e bancos de dados abertos.</p>
 
             <div class="orbit-container">
+                <!-- LOGO E NOME FLUTUANDO NO TOPO DO CÍRCULO DURANTE A VARREDURA -->
+                <div class="scan-brand-header" id="scanBrandHeader">
+                    <div class="logo-icon-mini">
+                        <i class="fa-solid fa-fingerprint"></i>
+                    </div>
+                    <span>radar facial</span>
+                </div>
+
                 <div class="orbit-ring" id="orbitRing">
                     <div class="icon-item"><i class="fa-solid fa-user-secret"></i></div>
                     <div class="icon-item"><i class="fa-brands fa-instagram"></i></div>
@@ -1085,7 +1133,6 @@
     <script>
         let pixCopiaCola = "";
         let scanHighlightInterval = null;
-        let meshProgressInterval = null;
         let timerInterval = null;
 
         let saldoCreditos = 0;
@@ -1357,40 +1404,29 @@
             return canvas.toDataURL('image/jpeg', 0.9);
         }
 
-        /* Pontos faciais anatômicos fixos divididos do topo (testa) até embaixo (queixo) */
+        /* Pontos faciais anatômicos detalhados simulando contorno real de um rosto */
         const pontosAnatomicosRosto = [
-            {id: 0, top: 22, left: 50, grupo: 1}, // Testa centro
-            {id: 1, top: 25, left: 38, grupo: 1}, // Testa esq
-            {id: 2, top: 25, left: 62, grupo: 1}, // Testa dir
-            
-            {id: 3, top: 35, left: 32, grupo: 2}, // Sobrancelha esq
-            {id: 4, top: 35, left: 68, grupo: 2}, // Sobrancelha dir
-            {id: 5, top: 40, left: 38, grupo: 2}, // Olho esq
-            {id: 6, top: 40, left: 62, grupo: 2}, // Olho dir
-
-            {id: 7, top: 48, left: 50, grupo: 3}, // Nariz topo/centro
-            {id: 8, top: 55, left: 44, grupo: 3}, // Nariz asa esq
-            {id: 9, top: 55, left: 56, grupo: 3}, // Nariz asa dir
-
-            {id: 10, top: 67, left: 50, grupo: 4}, // Boca centro
-            {id: 11, top: 66, left: 40, grupo: 4}, // Boca canto esq
-            {id: 12, top: 66, left: 60, grupo: 4}, // Boca canto dir
-
-            {id: 13, top: 80, left: 50, grupo: 5}, // Queixo
-            {id: 14, top: 52, left: 24, grupo: 3}, // Mandíbula esq
-            {id: 15, top: 52, left: 76, grupo: 3}  // Mandíbula dir
+            {id: 0, top: 22, left: 50}, {id: 1, top: 25, left: 40}, {id: 2, top: 25, left: 60},
+            {id: 3, top: 34, left: 33}, {id: 4, top: 34, left: 67},
+            {id: 5, top: 41, left: 37}, {id: 6, top: 41, left: 63},
+            {id: 7, top: 48, left: 50}, {id: 8, top: 54, left: 45}, {id: 9, top: 54, left: 55},
+            {id: 10, top: 66, left: 50}, {id: 11, top: 65, left: 41}, {id: 12, top: 65, left: 59},
+            {id: 13, top: 80, left: 50}, {id: 14, top: 52, left: 26}, {id: 15, top: 52, left: 74},
+            {id: 16, top: 30, left: 28}, {id: 17, top: 30, left: 72},
+            {id: 18, top: 72, left: 36}, {id: 19, top: 72, left: 64}
         ];
 
         const ligacoesWireframe = [
-            [0,1], [0,2], [1,3], [2,4], [3,5], [4,6], [5,7], [6,7],
-            [7,8], [7,9], [8,10], [9,10], [10,13], [3,14], [14,13], [4,15], [15,13], [5,11], [6,12]
+            [0,1], [0,2], [1,16], [2,17], [16,3], [17,4], [3,5], [4,6],
+            [5,7], [6,7], [7,8], [7,9], [8,10], [9,10], [10,13], [3,14],
+            [14,18], [18,13], [4,15], [15,19], [19,13], [5,11], [6,12]
         ];
 
         function inicializarPontosMeshFixo() {
             const container = document.getElementById('meshDotsContainer');
             container.innerHTML = '';
             
-            pontosAnatomicosRostro.forEach((p) => {
+            pontosAnatomicosRosto.forEach((p) => {
                 const dot = document.createElement('div');
                 dot.className = 'mesh-dot';
                 dot.id = 'mdot-' + p.id;
@@ -1401,11 +1437,9 @@
         }
 
         function atualizarVarreduraProgressiva(progressoPercent) {
-            // progressoPercent vai de 0 a 100 indicando a descida do laser pelo rosto
-            const alturaLaserTop = 15 + (progressoPercent * 0.7); // de 15% a 85%
+            const alturaLaserTop = 15 + (progressoPercent * 0.7);
 
-            // Ativa os pontos e linhas conforme o laser passa por eles de cima para baixo
-            pontosAnatomicosRostro.forEach((p) => {
+            pontosAnatomicosRosto.forEach((p) => {
                 const dot = document.getElementById('mdot-' + p.id);
                 if (dot) {
                     if (p.top <= alturaLaserTop) {
@@ -1419,8 +1453,8 @@
             ligacoesWireframe.forEach((lig, idx) => {
                 const lineEl = document.getElementById('l' + (idx % 10));
                 if (lineEl) {
-                    const p1 = pontosAnatomicosRostro.find(item => item.id === lig[0]);
-                    const p2 = pontosAnatomicosRostro.find(item => item.id === lig[1]);
+                    const p1 = pontosAnatomicosRosto.find(item => item.id === lig[0]);
+                    const p2 = pontosAnatomicosRosto.find(item => item.id === lig[1]);
                     
                     if (p1 && p2) {
                         const containerSize = 220;
@@ -1479,6 +1513,9 @@
             document.getElementById('resultsSection').style.display = 'none';
             document.getElementById('scanLoader').style.display = 'flex';
 
+            // Mostra o logo e o nome do site no topo do círculo durante a varredura
+            document.getElementById('scanBrandHeader').style.display = 'flex';
+
             const orbit = document.getElementById('orbitRing');
             const uploadCenter = document.getElementById('uploadBtn');
             const scannerLaser = document.getElementById('scannerLaser');
@@ -1511,6 +1548,7 @@
                     uploadCenter.classList.remove('pulse-scan');
                     scannerLaser.style.display = 'none';    
                     faceMeshOverlay.style.display = 'none';  
+                    document.getElementById('scanBrandHeader').style.display = 'none';
                     document.querySelectorAll('.icon-item').forEach(i => i.classList.remove('active-scan'));
 
                     document.body.classList.remove('focus-mode');
@@ -1523,7 +1561,6 @@
                     fill.style.width = width + '%';
                     loaderText.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> MAPEANDO PONTOS BIOMÉTRICOS (${Math.floor(width)}%)...`;
                     
-                    // Atualiza a varredura progressiva dos pontos do rosto conforme a barra avança
                     atualizarVarreduraProgressiva(width);
                 }
             }, intervaloTick); 
