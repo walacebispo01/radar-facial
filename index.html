@@ -237,7 +237,7 @@
 
         .scan-brand-header {
             position: absolute;
-            top: 25px;
+            top: 300px;
             left: 50%;
             transform: translateX(-50%);
             display: none;
@@ -976,6 +976,19 @@
         .social-proof-text { font-size: 0.82rem; text-align: left; }
         .social-proof-text strong { color: #fff; display: block; font-weight: 700; }
         .social-proof-text span { color: var(--text-dim); font-size: 0.75rem; }
+    
+        /* Mobile: impede o navegador de capturar o gesto de zoom da foto */
+        @media (max-width: 600px) {
+            .scan-brand-header { top: 275px; }
+            .interactive-preview-container,
+            .interactive-preview-container img {
+                touch-action: none !important;
+                -webkit-user-select: none;
+                user-select: none;
+                -webkit-touch-callout: none;
+            }
+        }
+
     </style>
 </head>
 <body>
@@ -1072,7 +1085,7 @@
                     </div>
                 </div>
 
-                <div class="zoom-hint" id="zoomHint">Posicione o rosto • Role o mouse para Zoom</div>
+                <div class="zoom-hint" id="zoomHint">Posicione o rosto • Arraste para mover • Use 2 dedos para zoom</div>
             </div>
 
             <button class="scan-action-btn" id="scanBtn" onclick="clicarProcurar()">
@@ -1239,6 +1252,9 @@
         let startX, startY;
         let imgX = 0, imgY = 0;
         let currentScale = 1;
+        let touchDragging = false;
+        let touchStartX = 0, touchStartY = 0;
+        let pinchStartDistance = 0, pinchStartScale = 1;
 
         window.addEventListener('DOMContentLoaded', () => {
             configurarInteracaoCirculo();
@@ -1409,12 +1425,65 @@
 
             container.addEventListener('wheel', (e) => {
                 e.preventDefault();
-                const zoomIntensity = 0.15;
-                if (e.deltaY < 0) currentScale += zoomIntensity;
-                else currentScale -= zoomIntensity;
-                if (currentScale < 0.1) currentScale = 0.1;
-                if (currentScale > 5) currentScale = 5;
+                currentScale += e.deltaY < 0 ? 0.15 : -0.15;
+                currentScale = Math.max(0.1, Math.min(5, currentScale));
                 atualizarTransformacaoImagem();
+            }, { passive: false });
+
+            const touchDistance = (touches) => {
+                const dx = touches[0].clientX - touches[1].clientX;
+                const dy = touches[0].clientY - touches[1].clientY;
+                return Math.hypot(dx, dy);
+            };
+
+            container.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    touchDragging = true;
+                    touchStartX = e.touches[0].clientX - imgX;
+                    touchStartY = e.touches[0].clientY - imgY;
+                } else if (e.touches.length === 2) {
+                    touchDragging = false;
+                    pinchStartDistance = touchDistance(e.touches);
+                    pinchStartScale = currentScale;
+                }
+                e.preventDefault();
+                e.stopPropagation();
+            }, { passive: false });
+
+            container.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 1 && touchDragging) {
+                    imgX = e.touches[0].clientX - touchStartX;
+                    imgY = e.touches[0].clientY - touchStartY;
+                    atualizarTransformacaoImagem();
+                } else if (e.touches.length === 2) {
+                    const d = touchDistance(e.touches);
+                    if (!pinchStartDistance) {
+                        pinchStartDistance = d;
+                        pinchStartScale = currentScale;
+                    }
+                    currentScale = Math.max(0.1, Math.min(5, pinchStartScale * (d / pinchStartDistance)));
+                    atualizarTransformacaoImagem();
+                }
+                e.preventDefault();
+                e.stopPropagation();
+            }, { passive: false });
+
+            container.addEventListener('touchend', (e) => {
+                if (e.touches.length === 0) {
+                    touchDragging = false;
+                    pinchStartDistance = 0;
+                } else if (e.touches.length === 1) {
+                    touchDragging = true;
+                    touchStartX = e.touches[0].clientX - imgX;
+                    touchStartY = e.touches[0].clientY - imgY;
+                    pinchStartDistance = 0;
+                }
+                e.preventDefault();
+            }, { passive: false });
+
+            container.addEventListener('touchcancel', () => {
+                touchDragging = false;
+                pinchStartDistance = 0;
             }, { passive: false });
         }
 
