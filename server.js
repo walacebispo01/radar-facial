@@ -79,7 +79,9 @@ function carregarDadosPersistidos() {
                 transacoes: {},
                 usuariosCreditos: {},
                 afiliados: {},
-                comissoesAfiliados: {}
+                comissoesAfiliados: {},
+                cliquesAfiliados: [],
+                repassesAfiliados: []
             };
         }
 
@@ -94,7 +96,9 @@ function carregarDadosPersistidos() {
                 transacoes: {},
                 usuariosCreditos: {},
                 afiliados: {},
-                comissoesAfiliados: {}
+                comissoesAfiliados: {},
+                cliquesAfiliados: [],
+                repassesAfiliados: []
             };
         }
 
@@ -105,7 +109,9 @@ function carregarDadosPersistidos() {
             usuariosCreditos:
                 parsed.usuariosCreditos || {},
             afiliados: parsed.afiliados || {},
-            comissoesAfiliados: parsed.comissoesAfiliados || {}
+            comissoesAfiliados: parsed.comissoesAfiliados || {},
+            cliquesAfiliados: Array.isArray(parsed.cliquesAfiliados) ? parsed.cliquesAfiliados : [],
+            repassesAfiliados: Array.isArray(parsed.repassesAfiliados) ? parsed.repassesAfiliados : []
         };
 
     } catch (error) {
@@ -117,7 +123,11 @@ function carregarDadosPersistidos() {
 
         return {
             transacoes: {},
-            usuariosCreditos: {}
+            usuariosCreditos: {},
+            afiliados: {},
+            comissoesAfiliados: {},
+            cliquesAfiliados: [],
+            repassesAfiliados: []
         };
     }
 }
@@ -136,6 +146,12 @@ const afiliados =
 
 const comissoesAfiliados =
     dbStorage.comissoesAfiliados || {};
+
+const cliquesAfiliados =
+    Array.isArray(dbStorage.cliquesAfiliados) ? dbStorage.cliquesAfiliados : [];
+
+const repassesAfiliados =
+    Array.isArray(dbStorage.repassesAfiliados) ? dbStorage.repassesAfiliados : [];
 
 
 function salvarDadosPersistidos() {
@@ -159,7 +175,9 @@ function salvarDadosPersistidos() {
             transacoes,
             usuariosCreditos,
             afiliados,
-            comissoesAfiliados
+            comissoesAfiliados,
+            cliquesAfiliados,
+            repassesAfiliados
         };
 
         fs.writeFileSync(
@@ -337,7 +355,7 @@ function registrarComissaoSeNecessario(transaction, paymentId, mpCheck) {
         percentual,
         valor_venda: Number(valorPago.toFixed(2)),
         valor_comissao: Number((valorPago * percentual / 100).toFixed(2)),
-        status: 'pendente',
+        status: 'disponivel',
         criado_em: new Date().toISOString()
     };
 
@@ -361,6 +379,7 @@ app.post('/api/admin/afiliados/listar', async (req, res) => {
         }
 
         const lista = Object.values(afiliados)
+            .map(a => obterResumoAfiliado(a.codigo))
             .sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
 
         return res.json({
@@ -388,6 +407,7 @@ app.post('/api/admin/afiliados/criar', async (req, res) => {
         }
 
         const nome = String(req.body?.nome || '').trim().slice(0, 100);
+        const email = String(req.body?.email || '').toLowerCase().trim().slice(0, 160);
         const codigo = gerarCodigoAfiliadoUnico();
         const percentual = Number(req.body?.percentual);
 
@@ -408,6 +428,7 @@ app.post('/api/admin/afiliados/criar', async (req, res) => {
         afiliados[codigo] = {
             id: gerarIdAfiliado(),
             nome,
+            email,
             codigo,
             comissao_percentual: percentual,
             status: 'ativo',
@@ -475,6 +496,131 @@ app.post('/api/admin/afiliados/atualizar', async (req, res) => {
             success: false,
             error: 'Erro ao atualizar afiliado.'
         });
+    }
+});
+
+
+function obterResumoAfiliado(codigo) {
+    const afiliado = afiliados[codigo];
+    const comissoes = Object.values(comissoesAfiliados)
+        .filter(c => c.afiliado_codigo === codigo);
+
+    const vendas = comissoes.length;
+    const cliques = cliquesAfiliados.filter(c => c.afiliado_codigo === codigo).length;
+    const faturamento = comissoes.reduce((s, c) => s + Number(c.valor_venda || 0), 0);
+    const comissaoTotal = comissoes.reduce((s, c) => s + Number(c.valor_comissao || 0), 0);
+    const comissaoPaga = comissoes
+        .filter(c => c.status === 'pago')
+        .reduce((s, c) => s + Number(c.valor_comissao || 0), 0);
+    const comissaoDisponivel = comissoes
+        .filter(c => c.status === 'disponivel' || c.status === 'pendente')
+        .reduce((s, c) => s + Number(c.valor_comissao || 0), 0);
+
+    return {
+        ...afiliado,
+        metricas: {
+            cliques,
+            vendas,
+            conversao: cliques > 0 ? Number(((vendas / cliques) * 100).toFixed(2)) : 0,
+            faturamento: Number(faturamento.toFixed(2)),
+            comissao_total: Number(comissaoTotal.toFixed(2)),
+            comissao_disponivel: Number(comissaoDisponivel.toFixed(2)),
+            comissao_paga: Number(comissaoPaga.toFixed(2))
+        },
+        repasses: repassesAfiliados
+            .filter(r => r.afiliado_codigo === codigo)
+            .sort((a, b) => String(b.pago_em).localeCompare(String(a.pago_em)))
+    };
+}
+
+app.post('/api/afiliados/clique', (req, res) => {
+    const codigo = normalizarCodigoAfiliado(req.body?.codigo);
+    const afiliado = afiliados[codigo];
+
+    if (!afiliado || afiliado.status !== 'ativo') {
+        return res.status(404).json({ success: false, error: 'Afiliado inválido.' });
+    }
+
+    cliquesAfiliados.push({
+        id: `clk_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+        afiliado_codigo: codigo,
+        criado_em: new Date().toISOString()
+    });
+
+    salvarDadosPersistidos();
+    return res.json({ success: true });
+});
+
+app.post('/api/admin/afiliados/resumo', async (req, res) => {
+    try {
+        const adminEmail = await validarAdminPorCredential(req.body?.credential);
+        if (!adminEmail) {
+            return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
+        }
+
+        const codigo = normalizarCodigoAfiliado(req.body?.codigo);
+        if (!afiliados[codigo]) {
+            return res.status(404).json({ success: false, error: 'Afiliado não encontrado.' });
+        }
+
+        return res.json({ success: true, afiliado: obterResumoAfiliado(codigo) });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: 'Erro ao carregar resumo do afiliado.' });
+    }
+});
+
+app.post('/api/admin/afiliados/pagar', async (req, res) => {
+    try {
+        const adminEmail = await validarAdminPorCredential(req.body?.credential);
+        if (!adminEmail) {
+            return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
+        }
+
+        const codigo = normalizarCodigoAfiliado(req.body?.codigo);
+        const afiliado = afiliados[codigo];
+
+        if (!afiliado) {
+            return res.status(404).json({ success: false, error: 'Afiliado não encontrado.' });
+        }
+
+        const abertas = Object.values(comissoesAfiliados).filter(c =>
+            c.afiliado_codigo === codigo &&
+            (c.status === 'disponivel' || c.status === 'pendente')
+        );
+
+        if (!abertas.length) {
+            return res.status(400).json({ success: false, error: 'Não há comissão disponível para marcar como paga.' });
+        }
+
+        const valor = Number(abertas.reduce((s, c) => s + Number(c.valor_comissao || 0), 0).toFixed(2));
+        const repasseId = `rep_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+        const pagoEm = new Date().toISOString();
+
+        abertas.forEach(c => {
+            c.status = 'pago';
+            c.pago_em = pagoEm;
+            c.repasse_id = repasseId;
+        });
+
+        repassesAfiliados.push({
+            id: repasseId,
+            afiliado_codigo: codigo,
+            afiliado_id: afiliado.id,
+            valor,
+            quantidade_comissoes: abertas.length,
+            pago_em: pagoEm,
+            registrado_por: adminEmail
+        });
+
+        salvarDadosPersistidos();
+
+        return res.json({
+            success: true,
+            repasse: repassesAfiliados[repassesAfiliados.length - 1],
+            afiliado: obterResumoAfiliado(codigo)
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: 'Erro ao registrar pagamento do afiliado.' });
     }
 });
 

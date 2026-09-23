@@ -1154,6 +1154,41 @@
             }
         }
 
+
+        .affiliate-metrics {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(6, minmax(95px, 1fr));
+            gap: 8px;
+            margin-top: 4px;
+        }
+        .affiliate-metric {
+            background: rgba(255,255,255,.035);
+            border: 1px solid rgba(255,255,255,.08);
+            border-radius: 10px;
+            padding: 9px;
+        }
+        .affiliate-metric small { display:block; color:var(--text-dim); font-size:.68rem; }
+        .affiliate-metric strong { display:block; margin-top:3px; font-size:.84rem; }
+        .affiliate-pay-btn {
+            border: 1px solid rgba(245,158,11,.4);
+            background: rgba(245,158,11,.12);
+            color: var(--gold);
+            padding: 9px 10px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 800;
+        }
+        .affiliate-history {
+            grid-column: 1 / -1;
+            font-size: .72rem;
+            color: var(--text-dim);
+            padding-top: 4px;
+        }
+        @media (max-width: 760px) {
+            .affiliate-metrics { grid-template-columns: 1fr 1fr; }
+        }
+
 </style>
 </head>
 <body>
@@ -1391,6 +1426,7 @@
 
             <div class="affiliate-admin-grid">
                 <input class="affiliate-admin-input" id="novoAfiliadoNome" placeholder="Nome do afiliado">
+                <input class="affiliate-admin-input" id="novoAfiliadoEmail" type="email" placeholder="E-mail Google do afiliado (para login depois)">
                 <select class="affiliate-admin-select" id="novoAfiliadoPercentual">
                     <option value="10">10%</option>
                     <option value="15">15%</option>
@@ -2397,6 +2433,16 @@
                         AFILIADO_EXPIRA_KEY,
                         String(Date.now() + AFILIADO_JANELA_MS)
                     );
+
+                    const clickKey = `radar_click_${codigo}`;
+                    if (!sessionStorage.getItem(clickKey)) {
+                        fetch('/api/afiliados/clique', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ codigo })
+                        }).catch(() => {});
+                        sessionStorage.setItem(clickKey, '1');
+                    }
                 }
             } catch (e) {
                 console.error('Não foi possível validar o afiliado:', e);
@@ -2470,11 +2516,11 @@
 
                     const nome = document.createElement('div');
                     nome.className = 'affiliate-name';
-                    nome.innerHTML = `<strong>${escaparHtmlAfiliado(afiliado.nome)}</strong>`;
+                    nome.innerHTML = `<strong>${escaparHtmlAfiliado(afiliado.nome)}</strong><br><small style="color:var(--text-dim)">${escaparHtmlAfiliado(afiliado.email || 'Login Google ainda não vinculado')}</small>`;
 
                     const codigo = document.createElement('div');
                     codigo.className = 'affiliate-code';
-                    codigo.innerText = `?ref=${afiliado.codigo}`;
+                    codigo.innerText = `${window.location.origin}/?ref=${afiliado.codigo}`;
 
                     const percentual = document.createElement('select');
                     percentual.className = 'affiliate-admin-select';
@@ -2492,10 +2538,6 @@
                         <option value="inativo" ${afiliado.status === 'inativo' ? 'selected' : ''}>Inativo</option>
                     `;
 
-                    const acoes = document.createElement('div');
-                    acoes.style.display = 'flex';
-                    acoes.style.gap = '6px';
-
                     const copiar = document.createElement('button');
                     copiar.className = 'affiliate-copy-btn';
                     copiar.innerHTML = '<i class="fa-solid fa-copy"></i>';
@@ -2508,15 +2550,43 @@
                     salvar.title = 'Salvar';
                     salvar.onclick = () => atualizarAfiliadoAdmin(afiliado.codigo);
 
-                    acoes.appendChild(copiar);
-                    acoes.appendChild(salvar);
-
                     row.appendChild(nome);
                     row.appendChild(codigo);
                     row.appendChild(percentual);
                     row.appendChild(statusSelect);
-                    row.appendChild(acoes);
+                    row.appendChild(copiar);
+                    row.appendChild(salvar);
 
+                    const m = afiliado.metricas || {};
+                    const metricas = document.createElement('div');
+                    metricas.className = 'affiliate-metrics';
+                    metricas.innerHTML = `
+                        <div class="affiliate-metric"><small>Cliques</small><strong>${Number(m.cliques || 0)}</strong></div>
+                        <div class="affiliate-metric"><small>Vendas</small><strong>${Number(m.vendas || 0)}</strong></div>
+                        <div class="affiliate-metric"><small>Conversão</small><strong>${Number(m.conversao || 0).toFixed(2)}%</strong></div>
+                        <div class="affiliate-metric"><small>Faturamento</small><strong>R$ ${Number(m.faturamento || 0).toFixed(2).replace('.', ',')}</strong></div>
+                        <div class="affiliate-metric"><small>A receber</small><strong>R$ ${Number(m.comissao_disponivel || 0).toFixed(2).replace('.', ',')}</strong></div>
+                        <div class="affiliate-metric"><small>Já pago</small><strong>R$ ${Number(m.comissao_paga || 0).toFixed(2).replace('.', ',')}</strong></div>
+                    `;
+                    row.appendChild(metricas);
+
+                    const history = document.createElement('div');
+                    history.className = 'affiliate-history';
+                    const repasses = Array.isArray(afiliado.repasses) ? afiliado.repasses : [];
+                    history.innerHTML = repasses.length
+                        ? `Último repasse: <strong>${escaparHtmlAfiliado(repasses[0].id)}</strong> · R$ ${Number(repasses[0].valor || 0).toFixed(2).replace('.', ',')} · ${new Date(repasses[0].pago_em).toLocaleString('pt-BR')}`
+                        : 'Nenhum repasse registrado.';
+
+                    if (Number(m.comissao_disponivel || 0) > 0) {
+                        const pagar = document.createElement('button');
+                        pagar.className = 'affiliate-pay-btn';
+                        pagar.style.marginLeft = '10px';
+                        pagar.innerHTML = '<i class="fa-solid fa-check"></i> Marcar disponível como pago';
+                        pagar.onclick = () => registrarPagamentoAfiliado(afiliado.codigo, Number(m.comissao_disponivel || 0));
+                        history.appendChild(pagar);
+                    }
+
+                    row.appendChild(history);
                     lista.appendChild(row);
                 });
             } catch (e) {
@@ -2526,6 +2596,7 @@
 
         async function criarAfiliadoAdmin() {
             const nome = document.getElementById('novoAfiliadoNome').value.trim();
+            const email = document.getElementById('novoAfiliadoEmail').value.trim();
             const percentual = Number(
                 document.getElementById('novoAfiliadoPercentual').value
             );
@@ -2542,6 +2613,7 @@
                     body: JSON.stringify({
                         credential: googleCredentialToken,
                         nome,
+                        email,
                         percentual
                     })
                 });
@@ -2553,6 +2625,7 @@
                 }
 
                 document.getElementById('novoAfiliadoNome').value = '';
+                document.getElementById('novoAfiliadoEmail').value = '';
                 document.getElementById('novoAfiliadoPercentual').value = '10';
 
                 await carregarAfiliadosAdmin();
@@ -2586,6 +2659,33 @@
                     throw new Error(data.error || 'Erro ao atualizar afiliado.');
                 }
 
+                await carregarAfiliadosAdmin();
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+
+        async function registrarPagamentoAfiliado(codigo, valor) {
+            const confirmar = confirm(
+                `Confirmar que R$ ${Number(valor || 0).toFixed(2).replace('.', ',')} já foi pago a este afiliado?`
+            );
+            if (!confirmar) return;
+
+            try {
+                const res = await fetch('/api/admin/afiliados/pagar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        credential: googleCredentialToken,
+                        codigo
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    throw new Error(data.error || 'Erro ao registrar pagamento.');
+                }
+                alert(`Repasse ${data.repasse.id} registrado como pago.`);
                 await carregarAfiliadosAdmin();
             } catch (e) {
                 alert(e.message);
