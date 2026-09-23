@@ -23,7 +23,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-app.use(express.static(__dirname));
+// Sirva apenas o frontend pela rota acima; a raiz contém código e dados privados.
 
 const storage = multer.memoryStorage();
 
