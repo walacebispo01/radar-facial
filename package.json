@@ -7,7 +7,9 @@
     "start": "node server.js",
     "test": "node --test test/*.test.js",
     "test:db": "node scripts/test-db.js",
-    "check": "node --check server.js && node --check lib/database.js && node --check lib/postgres-store.js"
+    "migration:status": "node scripts/check-migration.js",
+    "migrate:sessions": "node scripts/migrate-sessions.js",
+    "check": "node --check server.js && node --check lib/auth.js && node --check lib/database.js && node --check lib/google-auth.js && node --check lib/postgres-store.js && node --check lib/session-store.js && node --check public/auth.js && node --check scripts/check-migration.js && node --check scripts/migrate-sessions.js && node --check scripts/test-db.js"
   },
   "keywords": [],
   "author": "",
@@ -18,6 +20,7 @@
     "cors": "^2.8.6",
     "dotenv": "^18.0.1",
     "express": "^5.2.1",
+    "google-auth-library": "^11.1.0",
     "mercadopago": "^3.6.1",
     "multer": "^2.4.0",
     "pg": "^8.23.0"

@@ -2,6 +2,9 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env'), quiet: true });
 const { createPool } = require('./lib/database');
 const { createStore, StoreError } = require('./lib/postgres-store');
+const { createSessionStore } = require('./lib/session-store');
+const { createGoogleVerifier } = require('./lib/google-auth');
+const { createAuth, isAuthPath } = require('./lib/auth');
 const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
@@ -10,16 +13,26 @@ const axios = require('axios');
 const FormData = require('form-data');
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 
-function createApp({ store, payment: paymentOverride, validateGoogle } = {}) {
+function createApp({ store, sessions, payment: paymentOverride, verifyGoogle,
+    appOrigin = process.env.APP_ORIGIN || process.env.RENDER_EXTERNAL_URL } = {}) {
 if (!store) throw new Error('Persistência PostgreSQL obrigatória.');
 const app = express();
+const auth = createAuth({ sessions, origin: appOrigin, isAdmin: emailEhAdmin,
+    verifyGoogle: verifyGoogle || createGoogleVerifier({ audience: process.env.GOOGLE_CLIENT_ID }) });
 
 /* =========================================================
    CONFIGURAÇÃO GERAL
 ========================================================= */
 
-app.use(cors());
+const publicCors = cors();
+app.use((req, res, next) => isAuthPath(req.path) ? next() : publicCors(req, res, next));
 app.use(express.json());
+app.use((req, res, next) => isAuthPath(req.path) ? auth.noStore(req, res, next) : next());
+app.get('/auth.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth.js')));
+app.get('/api/session', auth.requireSession, auth.session);
+app.post('/api/logout', auth.browserMutation, auth.requireSession, auth.csrf, auth.logout);
+app.use(['/api/descontar-credito', '/api/criar-pix', '/api/verificar-pix', '/api/escanear-rosto', '/api/admin/afiliados'],
+    auth.browserMutation, auth.requireSession, auth.csrf);
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
@@ -54,76 +67,6 @@ const payment = paymentOverride || new Payment(client);
 
 
 /* =========================================================
-   GOOGLE
-========================================================= */
-
-async function validarTokenGoogle(credential) {
-    if (validateGoogle) return validateGoogle(credential);
-
-    if (!credential) {
-        return null;
-    }
-
-    try {
-
-        const response = await axios.get(
-            'https://oauth2.googleapis.com/tokeninfo',
-            {
-                params: {
-                    id_token: credential
-                },
-
-                timeout: 10000
-            }
-        );
-
-        const data = response.data;
-
-        if (
-            !data ||
-            !data.email ||
-            !(
-                data.email_verified === true ||
-                data.email_verified === 'true'
-            )
-        ) {
-
-            return null;
-        }
-
-
-        if (
-            process.env.GOOGLE_CLIENT_ID &&
-            data.aud !==
-            process.env.GOOGLE_CLIENT_ID
-        ) {
-
-            console.error(
-                'Google Client ID não confere com o token.'
-            );
-
-            return null;
-        }
-
-
-        return data.email
-            .toLowerCase()
-            .trim();
-
-    } catch (error) {
-
-        console.error(
-            'Erro ao validar token Google:',
-            error.message
-        );
-
-        return null;
-    }
-}
-
-
-
-/* =========================================================
    ADMIN / AFILIADOS
    Os e-mails de administrador ficam SOMENTE no ambiente:
    ADMIN_EMAILS=email1@dominio.com,email2@dominio.com
@@ -153,10 +96,9 @@ function normalizarCodigoAfiliado(valor) {
         .slice(0, 40);
 }
 
-async function validarAdminPorCredential(credential) {
-    const email = await validarTokenGoogle(credential);
-    if (!email || !emailEhAdmin(email)) return null;
-    return email;
+function validarAdminPorSessao(req) {
+    const email = req.auth?.email;
+    return email && emailEhAdmin(email) ? email : null;
 }
 
 // Mantém erros públicos existentes e não expõe detalhes do PostgreSQL.
@@ -177,7 +119,7 @@ function chaveIdempotencia(req) {
 
 app.post('/api/admin/afiliados/listar', async (req, res) => {
     try {
-        if (!await validarAdminPorCredential(req.body?.credential)) {
+        if (!validarAdminPorSessao(req)) {
             return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
         }
         return res.json({ success: true, afiliados: await store.listAffiliates() });
@@ -186,7 +128,7 @@ app.post('/api/admin/afiliados/listar', async (req, res) => {
 
 app.post('/api/admin/afiliados/criar', async (req, res) => {
     try {
-        if (!await validarAdminPorCredential(req.body?.credential)) {
+        if (!validarAdminPorSessao(req)) {
             return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
         }
         const nome = String(req.body?.nome || '').trim().slice(0, 100);
@@ -200,7 +142,7 @@ app.post('/api/admin/afiliados/criar', async (req, res) => {
 
 app.post('/api/admin/afiliados/atualizar', async (req, res) => {
     try {
-        if (!await validarAdminPorCredential(req.body?.credential)) {
+        if (!validarAdminPorSessao(req)) {
             return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
         }
         const codigo = normalizarCodigoAfiliado(req.body?.codigo);
@@ -225,7 +167,7 @@ app.post('/api/afiliados/clique', async (req, res) => {
 
 app.post('/api/admin/afiliados/resumo', async (req, res) => {
     try {
-        if (!await validarAdminPorCredential(req.body?.credential)) {
+        if (!validarAdminPorSessao(req)) {
             return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
         }
         const afiliado = await store.affiliateSummary(normalizarCodigoAfiliado(req.body?.codigo));
@@ -236,7 +178,7 @@ app.post('/api/admin/afiliados/resumo', async (req, res) => {
 
 app.post('/api/admin/afiliados/pagar', async (req, res) => {
     try {
-        const adminEmail = await validarAdminPorCredential(req.body?.credential);
+        const adminEmail = validarAdminPorSessao(req);
         if (!adminEmail) return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
         const result = await store.payAffiliate(normalizarCodigoAfiliado(req.body?.codigo), adminEmail, chaveIdempotencia(req));
         return res.json({ success: true, ...result });
@@ -256,79 +198,7 @@ app.get('/api/afiliados/validar/:codigo', async (req, res) => {
    LOGIN GOOGLE
 ========================================================= */
 
-app.post(
-    '/api/login-google',
-    async (req, res) => {
-
-        try {
-
-            const {
-                credential
-            } = req.body;
-
-
-            if (!credential) {
-
-                return res.status(400).json({
-                    success: false,
-                    error:
-                        'Token Google não informado.'
-                });
-            }
-
-
-            const emailValidado =
-                await validarTokenGoogle(
-                    credential
-                );
-
-
-            if (!emailValidado) {
-
-                return res.status(401).json({
-                    success: false,
-                    error:
-                        'Autenticação Google inválida.'
-                });
-            }
-
-
-            const saldo = await store.login(emailValidado);
-
-            return res.json({
-
-                success: true,
-
-                email:
-                    emailValidado,
-
-                creditos: saldo,
-
-                isAdmin:
-                    emailEhAdmin(
-                        emailValidado
-                    )
-            });
-
-
-        } catch (error) {
-
-            console.error(
-                'Erro no login Google:',
-                error.message
-            );
-
-
-            return res.status(500).json({
-
-                success: false,
-
-                error:
-                    'Erro ao sincronizar usuário.'
-            });
-        }
-    }
-);
+app.post('/api/login-google', auth.browserMutation, auth.login);
 
 
 /* =========================================================
@@ -344,10 +214,10 @@ app.post(
             const {
                 valor,
                 plano,
-                email,
                 creditos,
                 afiliado_codigo
             } = req.body;
+            const email = req.auth.email;
 
 
             if (!email) {
@@ -658,6 +528,9 @@ app.post('/api/verificar-pix', async (req, res) => {
     try {
         const { transaction_id } = req.body;
         if (!transaction_id) return res.status(400).json({ success: false, error: 'ID da transação não informado.' });
+        if (!await store.paymentBelongsToUser(String(transaction_id), req.auth.email)) {
+            return res.status(404).json({ success: false, error: 'Transação não encontrada.' });
+        }
         const result = await store.syncPayment(String(transaction_id), consultarPagamento);
         if (!result) return res.status(404).json({ success: false, error: 'Transação não encontrada.' });
         return res.json({ success: true, ...result, transaction_id: String(transaction_id) });
@@ -680,7 +553,7 @@ app.post('/api/mercadopago-webhook', async (req, res) => {
 
 app.post('/api/descontar-credito', async (req, res) => {
     try {
-        const { email } = req.body;
+        const { email } = req.auth;
         if (!email) return res.status(400).json({ success: false, error: 'E-mail obrigatório.' });
         const saldo = await store.debit(String(email).toLowerCase().trim());
         if (saldo === null) return res.status(403).json({ success: false, error: 'Créditos esgotados.', creditos: 0 });
@@ -737,6 +610,49 @@ app.post(
                         'Chave da API do FaceCheck não configurada no servidor.'
                 });
             }
+
+            let requestKey;
+            try {
+                requestKey = chaveIdempotencia(req);
+            } catch (error) {
+                return res.status(error.status || 400).json({ success: false, error: error.message });
+            }
+            if (!requestKey) {
+                return res.status(400).json({ success: false, error: 'Idempotency-Key é obrigatório para a busca.' });
+            }
+
+            const reservation = await store.beginFaceSearch(req.auth.email, requestKey);
+            if (reservation.status === 'sem_credito') {
+                return res.status(403).json({ success: false, error: 'Créditos esgotados.', creditos: 0 });
+            }
+            if (reservation.status === 'concluida') {
+                return res.json({ ...reservation.resposta, creditos: reservation.creditos, idempotentReplay: true });
+            }
+            if (reservation.reused) {
+                return res.status(409).json({ success: false,
+                    error: reservation.status === 'processando' ? 'Esta busca ainda está em processamento.' :
+                        'Esta tentativa falhou e o crédito já foi devolvido.',
+                    code: reservation.status === 'processando' ? 'SEARCH_IN_PROGRESS' : 'SEARCH_REFUNDED',
+                    creditos: reservation.creditos });
+            }
+
+            // Centraliza conclusão e compensação para todas as saídas da integração externa.
+            const sendJson = res.json.bind(res);
+            res.json = async body => {
+                try {
+                    if (res.statusCode >= 400 || body?.success !== true) {
+                        const creditos = await store.refundFaceSearch(reservation.id, req.auth.email);
+                        return sendJson({ ...body, creditos });
+                    }
+                    const persisted = { ...body };
+                    const creditos = await store.completeFaceSearch(reservation.id, req.auth.email, persisted);
+                    return sendJson({ ...persisted, creditos });
+                } catch (persistenceError) {
+                    console.error('[FACECHECK] Falha ao finalizar consumo de crédito.');
+                    res.statusCode = 500;
+                    return sendJson({ success: false, error: 'Não foi possível finalizar a busca com segurança.' });
+                }
+            };
 
 
             const FACECHECK_SITE =
@@ -1521,7 +1437,7 @@ try {
     await pool.end();
     throw new Error('Não foi possível conectar ao PostgreSQL. Verifique a configuração local.');
 }
-const app = createApp({ store: createStore(pool) });
+const app = createApp({ store: createStore(pool), sessions: createSessionStore(pool) });
 const PORT =
     process.env.PORT ||
     3000;

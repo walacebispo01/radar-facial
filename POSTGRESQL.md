@@ -13,12 +13,32 @@ npm start
 npm run check
 npm test
 npm run test:db
+npm run migrate:sessions
 ```
 
 `npm start` verifica a conexão antes de abrir a porta HTTP. O pool possui limites
 de conexões e timeouts, e é encerrado em SIGTERM/SIGINT. Erros do driver são
 sanitizados antes de chegar às rotas. A configuração TLS vem da URL do provedor;
 o código não desativa a verificação de certificados.
+
+## Sessão, CSRF e ambiente
+
+A migração `sql/migrations/001-sessoes.sql` cria as sessões e o livro de consumo
+idempotente das buscas faciais. Aplique-a uma única vez no Neon antes de publicar
+esta versão. `npm run migrate:sessions` usa `DATABASE_URL`, executa o arquivo
+inteiro em uma transação e faz rollback em caso de erro.
+
+Variáveis obrigatórias em produção:
+
+- `APP_ORIGIN=https://radarfacial.com.br` (origem exata, sem caminho ou barra final);
+- `GOOGLE_CLIENT_ID` correspondente ao botão Google do site;
+- `ADMIN_EMAILS` como lista de e-mails normalizados, separados por vírgula;
+- `DATABASE_URL`, `MERCADOPAGO_TOKEN` e `FACECHECK_API_KEY` somente no servidor.
+
+O login cria um cookie `__Host-radar_session` com `Secure`, `HttpOnly` e
+`SameSite=Lax`. Rotas autenticadas validam origem, sessão e CSRF. O frontend não
+usa mais o token Google como sessão e não envia e-mail para identificar compras,
+consultas ou ações administrativas.
 
 ## Operações financeiras
 
@@ -28,10 +48,10 @@ o código não desativa a verificação de certificados.
   ordem entre consulta e webhook.
 - Créditos, `credited`, data de liberação e eventual comissão são gravados na
   mesma transação. Falha em qualquer etapa ou constraint no COMMIT reverte tudo.
-- O desconto usa `UPDATE ... WHERE creditos > 0 RETURNING creditos`. Cada chamada
-  válida desconta um crédito, como antes. O schema não contém um identificador de
-  consumo para deduplicar retries HTTP do desconto; atomicidade evita saldo
-  negativo e atualização perdida, mas não torna duas chamadas um único consumo.
+- A busca facial exige `Idempotency-Key`. O servidor reserva o crédito antes de
+  chamar o FaceCheck, salva a resposta concluída para retries e reembolsa exatamente
+  uma vez quando o provedor falha. Operações interrompidas há mais de 15 minutos
+  são compensadas na próxima tentativa do usuário.
 - O repasse bloqueia o afiliado e todas as comissões disponíveis/pendentes, soma
   valores no PostgreSQL, cria o repasse e vincula as comissões na mesma transação.
   A chave padrão é derivada do lote de comissões e o histórico não é reatribuído.
@@ -59,8 +79,8 @@ A migração não adiciona fila de reconciliação nem armazena QR Codes no banc
 
 As respostas mantêm os campos usados pelo site, números JSON para créditos e
 valores e datas ISO. A view é adaptada para `metricas` e `repasses`; campos internos
-de idempotência não são expostos. Google, FaceCheck e autorização por ADMIN_EMAILS
-continuam no backend. `index.html` e o schema não foram alterados.
+de idempotência não são expostos. Google, FaceCheck e autorização por
+`ADMIN_EMAILS` continuam no backend.
 
 Os testes aplicam o SQL existente em uma instância PGlite em memória e usam dados
 sintéticos. Cobrem duplicidade, rollbacks, constraints adiadas, créditos, repasses,
@@ -70,3 +90,14 @@ não equivale a um teste de carga/MVCC com múltiplas sessões PostgreSQL.
 
 `npm run test:db` faz somente `SELECT 1` em transação de leitura na DATABASE_URL.
 Nenhum teste automatizado importa dados nem grava fixtures no Neon.
+
+## Checklist de publicação
+
+1. Revogar os segredos expostos e cadastrar somente os novos valores na hospedagem.
+2. Conferir `APP_ORIGIN`, `ADMIN_EMAILS`, `GOOGLE_CLIENT_ID` e `DATABASE_URL`.
+3. Executar `npm run test:db` e `npm run migrate:sessions` contra o Neon correto.
+4. Executar `npm run check` e `npm test`, publicar e aguardar o health check.
+5. Em janela anônima, validar login/restauração/logout, criação e confirmação de
+   PIX, uma busca FaceCheck com saldo, falha sem saldo e administração permitida/negada.
+6. Confirmar no banco que um retry da mesma busca gerou uma linha em
+   `buscas_faciais` e apenas um débito.

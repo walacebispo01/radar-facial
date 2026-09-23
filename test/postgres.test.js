@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const { PGlite } = require('@electric-sql/pglite');
 const { createStore } = require('../lib/postgres-store');
+const { createSessionStore } = require('../lib/session-store');
+const axios = require('axios');
 
 // PGlite possui uma sessão. Este adaptador serializa clientes inteiros,
 // não apenas queries, para não misturar transações. Não simula MVCC multissessão.
@@ -34,6 +36,7 @@ function memoryPool(db) {
 test('Persistência PostgreSQL com o schema exato, em memória', async t => {
     const db = new PGlite();
     await db.exec(fs.readFileSync(path.join(__dirname, '../sql/schema-proposto.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../sql/migrations/001-sessoes.sql'), 'utf8'));
     const pool = memoryPool(db);
     const store = createStore(pool);
     t.after(() => db.close());
@@ -220,9 +223,33 @@ test('Persistência PostgreSQL com o schema exato, em memória', async t => {
         assert.equal((await store.affiliateSummary(f.af.codigo)).metricas.comissao_paga, 0);
     });
 
+    await t.test('busca facial consome uma vez, reembolsa falha e reaproveita resultado concluído', async () => {
+        const email = 'scan@example.test';
+        await store.login(email);
+        await db.query('UPDATE public.usuarios SET creditos = 2 WHERE email = $1', [email]);
+
+        const first = await store.beginFaceSearch(email, 'scan-failure');
+        assert.equal(first.status, 'processando');
+        assert.equal(first.creditos, 1);
+        const duplicate = await store.beginFaceSearch(email, 'scan-failure');
+        assert.equal(duplicate.reused, true);
+        assert.equal(duplicate.status, 'processando');
+        assert.equal(await store.refundFaceSearch(first.id, email), 2);
+        assert.equal(await store.refundFaceSearch(first.id, email), 2);
+
+        const second = await store.beginFaceSearch(email, 'scan-success');
+        const payload = { success: true, total: 1, items: [{ score: 99 }] };
+        assert.equal(await store.completeFaceSearch(second.id, email, payload), 1);
+        const replay = await store.beginFaceSearch(email, 'scan-success');
+        assert.equal(replay.status, 'concluida');
+        assert.deepEqual(replay.resposta, payload);
+        assert.equal(replay.creditos, 1);
+    });
+
     await t.test('contratos HTTP do site e webhook, com serviços externos simulados', async () => {
         process.env.ADMIN_EMAILS = 'admin@example.test';
         process.env.MERCADOPAGO_TOKEN = 'test-only';
+        process.env.FACECHECK_API_KEY = 'test-only';
         const { createApp } = require('../server');
         let remoteStatus = 'pending';
         let failProvider = false;
@@ -230,55 +257,112 @@ test('Persistência PostgreSQL com o schema exato, em memória', async t => {
             async create() { return { id: 'http-1', status: 'pending', point_of_interaction: { transaction_data: { qr_code: 'teste', qr_code_base64: null, ticket_url: null } } }; },
             async get({ id }) { if (failProvider) throw new Error('segredo'); return { id, status: remoteStatus, transaction_amount: 50 }; },
         };
-        const app = createApp({ store, payment, validateGoogle: async credential => credential === 'admin' ? 'admin@example.test' : credential === 'user' ? 'http@example.test' : null });
+        const verifyGoogle = async credential => credential === 'admin'
+            ? { email: 'admin@example.test', sub: 'admin-sub' }
+            : credential === 'user' ? { email: 'http@example.test', sub: 'user-sub' } : null;
+        const app = createApp({ store, sessions: createSessionStore(pool), payment, verifyGoogle,
+            appOrigin: 'https://radarfacial.com.br' });
         const server = app.listen(0, '127.0.0.1');
         await new Promise(resolve => server.once('listening', resolve));
         const base = `http://127.0.0.1:${server.address().port}`;
-        const post = async (route, body) => {
-            const response = await fetch(base + route, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+        const post = async (route, body, session = null, extraHeaders = {}) => {
+            const headers = { 'content-type': 'application/json', origin: 'https://radarfacial.com.br',
+                'x-radar-request': '1', ...extraHeaders };
+            if (session) {
+                headers.cookie = session.cookie;
+                headers['x-csrf-token'] = session.csrfToken;
+            }
+            const response = await fetch(base + route, { method: 'POST', headers, body: JSON.stringify(body) });
             const text = await response.text();
-            return { status: response.status, body: response.headers.get('content-type')?.includes('application/json') ? JSON.parse(text) : text };
+            return { status: response.status, body: response.headers.get('content-type')?.includes('application/json') ? JSON.parse(text) : text,
+                cookie: response.headers.get('set-cookie')?.split(';')[0] };
+        };
+        const login = async credential => {
+            const result = await post('/api/login-google', { credential });
+            return { ...result.body, cookie: result.cookie };
         };
         try {
             assert.equal((await fetch(base + '/')).status, 200);
             assert.equal((await fetch(base + '/.env')).status, 404);
             assert.equal((await fetch(base + '/lib/postgres-store.js')).status, 404);
-            assert.equal((await post('/api/admin/afiliados/listar', {})).status, 403);
-            assert.deepEqual((await post('/api/login-google', { credential: 'user' })).body,
-                { success: true, email: 'http@example.test', creditos: 0, isAdmin: false });
+            assert.equal((await post('/api/admin/afiliados/listar', {})).status, 401);
+            const user = await login('user');
+            assert.equal(user.email, 'http@example.test');
+            assert.equal(user.creditos, 0);
+            assert.equal(user.isAdmin, false);
+            assert.ok(user.csrfToken && user.cookie);
             assert.equal((await post('/api/login-google', {})).status, 400);
             assert.equal((await post('/api/login-google', { credential: 'invalid' })).status, 401);
-            const af = (await post('/api/admin/afiliados/criar', { credential: 'admin', nome: 'HTTP', percentual: 15 })).body.afiliado;
+            const admin = await login('admin');
+            assert.equal((await post('/api/admin/afiliados/listar', {}, admin,
+                { origin: 'https://evil.example' })).status, 403);
+            assert.equal((await post('/api/admin/afiliados/listar', {}, { ...admin, csrfToken: 'A'.repeat(43) })).status, 403);
+            const af = (await post('/api/admin/afiliados/criar', { nome: 'HTTP', percentual: 15 }, admin)).body.afiliado;
             assert.equal((await fetch(base + '/api/afiliados/validar/' + af.codigo)).status, 200);
             assert.deepEqual((await post('/api/afiliados/clique', { codigo: af.codigo })).body, { success: true });
-            const pix = await post('/api/criar-pix', { email: 'http@example.test', valor: 50, creditos: 2, afiliado_codigo: af.codigo });
+            const pix = await post('/api/criar-pix', { valor: 50, creditos: 2, afiliado_codigo: af.codigo }, user,
+                { 'idempotency-key': 'pix-http-1' });
             assert.equal(pix.status, 200);
             assert.deepEqual(Object.keys(pix.body).sort(), ['success', 'transaction_id', 'status', 'status_detail', 'qr_code', 'qr_code_base64', 'ticket_url', 'transaction_data'].sort());
-            assert.equal((await post('/api/verificar-pix', { transaction_id: 'unknown' })).status, 404);
+            assert.equal((await post('/api/verificar-pix', { transaction_id: 'unknown' }, user)).status, 404);
             remoteStatus = 'approved';
-            assert.deepEqual((await post('/api/verificar-pix', { transaction_id: 'http-1' })).body,
+            assert.deepEqual((await post('/api/verificar-pix', { transaction_id: 'http-1' }, user)).body,
                 { success: true, pago: true, status: 'approved', creditos: 2, transaction_id: 'http-1' });
             assert.equal((await post('/api/mercadopago-webhook', { data: { id: 'http-1' } })).status, 200);
             assert.equal(await store.login('http@example.test'), 2);
-            assert.deepEqual((await post('/api/descontar-credito', { email: 'http@example.test' })).body, { success: true, creditos: 1 });
-            const paid = await post('/api/admin/afiliados/pagar', { credential: 'admin', codigo: af.codigo });
+            assert.deepEqual((await post('/api/descontar-credito', {}, user)).body, { success: true, creditos: 1 });
+            const paid = await post('/api/admin/afiliados/pagar', { codigo: af.codigo }, admin);
             assert.equal(paid.status, 200);
             assert.deepEqual(Object.keys(paid.body).sort(), ['success', 'repasse', 'afiliado'].sort());
             assert.equal(paid.body.repasse.valor, 7.5);
             assert.equal(typeof paid.body.repasse.pago_em, 'string');
-            assert.equal((await post('/api/admin/afiliados/pagar', { credential: 'admin', codigo: af.codigo })).status, 400);
-            assert.equal((await post('/api/admin/afiliados/resumo', { credential: 'admin', codigo: af.codigo })).body.afiliado.metricas.vendas, 1);
-            const list = await post('/api/admin/afiliados/listar', { credential: 'admin' });
+            assert.equal((await post('/api/admin/afiliados/pagar', { codigo: af.codigo }, admin)).status, 400);
+            assert.equal((await post('/api/admin/afiliados/resumo', { codigo: af.codigo }, admin)).body.afiliado.metricas.vendas, 1);
+            const list = await post('/api/admin/afiliados/listar', {}, admin);
             assert.equal(list.status, 200);
             assert.ok(Array.isArray(list.body.afiliados));
-            const update = await post('/api/admin/afiliados/atualizar', { credential: 'admin', codigo: af.codigo, percentual: 10, status: 'inativo' });
+            const update = await post('/api/admin/afiliados/atualizar', { codigo: af.codigo, percentual: 10, status: 'inativo' }, admin);
             assert.equal(update.body.afiliado.status, 'inativo');
             assert.equal((await fetch(base + '/api/afiliados/validar/' + af.codigo)).status, 404);
-            await post('/api/descontar-credito', { email: 'http@example.test' });
-            assert.deepEqual(await post('/api/descontar-credito', { email: 'http@example.test' }),
-                { status: 403, body: { success: false, error: 'Créditos esgotados.', creditos: 0 } });
+            await post('/api/descontar-credito', {}, user);
+            const empty = await post('/api/descontar-credito', {}, user);
+            assert.equal(empty.status, 403);
+            assert.deepEqual(empty.body, { success: false, error: 'Créditos esgotados.', creditos: 0 });
             assert.equal((await fetch(base + '/api/status')).status, 200);
-            assert.equal((await post('/api/escanear-rosto', {})).status, 400);
+            assert.equal((await post('/api/escanear-rosto', {}, user)).status, 400);
+
+            const scan = async key => {
+                const form = new FormData();
+                form.append('imagem', new Blob(['fake-image'], { type: 'image/jpeg' }), 'rosto.jpg');
+                const response = await fetch(base + '/api/escanear-rosto', { method: 'POST', body: form,
+                    headers: { origin: 'https://radarfacial.com.br', 'x-radar-request': '1',
+                        'x-csrf-token': user.csrfToken, cookie: user.cookie, 'idempotency-key': key } });
+                return { status: response.status, body: await response.json() };
+            };
+            await db.query('UPDATE public.usuarios SET creditos = 1 WHERE email = $1', [user.email]);
+            const originalAxiosPost = axios.post;
+            try {
+                axios.post = async () => ({ status: 503, data: { error: 'indisponível' } });
+                const failedScan = await scan('scan-http-failure');
+                assert.equal(failedScan.status, 502);
+                assert.equal(failedScan.body.creditos, 1);
+                assert.equal(await store.login(user.email), 1);
+                assert.equal((await scan('scan-http-failure')).status, 409);
+
+                axios.post = async url => url.endsWith('/api/upload_pic')
+                    ? { status: 200, data: { id_search: 'search-http-1' } }
+                    : { status: 200, data: { output: { items: [] }, progress: 100 } };
+                const successfulScan = await scan('scan-http-success');
+                assert.equal(successfulScan.status, 200);
+                assert.equal(successfulScan.body.creditos, 0);
+                axios.post = async () => { throw new Error('não deveria repetir chamada externa'); };
+                const replay = await scan('scan-http-success');
+                assert.equal(replay.status, 200);
+                assert.equal(replay.body.idempotentReplay, true);
+                assert.equal(await store.login(user.email), 0);
+            } finally {
+                axios.post = originalAxiosPost;
+            }
             failProvider = true;
             const failed = await post('/api/mercadopago-webhook', { data: { id: 'http-1' } });
             assert.equal(failed.status, 500);

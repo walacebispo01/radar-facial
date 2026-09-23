@@ -1224,7 +1224,7 @@
                          data-size="large">
                     </div>
                 </div>
-                <div id="userProfileBadge" class="user-profile-badge" style="display: none;">
+                <div id="userProfileBadge" class="user-profile-badge" style="display: none; cursor: pointer;" onclick="sairDaConta()" title="Sair da conta">
                     <i class="fa-solid fa-user-check" style="color: var(--gold);"></i> <span id="userEmailDisplay">conta@email.com</span>
                 </div>
             </div>
@@ -1478,6 +1478,7 @@
         </div>
     </div>
 
+    <script src="/auth.js"></script>
     <script>
         let pixCopiaCola = "";
         let scanHighlightInterval = null;
@@ -1487,8 +1488,11 @@
 
         let saldoCreditos = 0;
         let usuarioEmail = null;
-        let googleCredentialToken = null;
         let usuarioEhAdmin = false;
+
+        const authClient = window.RadarAuth.createClient({
+            onSession: aplicarSessao
+        });
 
         const AFILIADO_STORAGE_KEY = 'radar_facial_afiliado';
         const AFILIADO_EXPIRA_KEY = 'radar_facial_afiliado_expira';
@@ -1506,6 +1510,7 @@
             configurarInteracaoCirculo();
             configurarTeclaEsc();
             capturarAfiliadoDaUrl();
+            authClient.restore().catch(error => console.error('Erro ao restaurar sessão:', error));
         });
 
         function voltarParaInicio(e) {
@@ -1561,26 +1566,34 @@
             } catch (e) { console.error("Erro ao renderizar botão Google:", e); }
         }
 
-        function handleGoogleLogin(response) {
-            googleCredentialToken = response.credential;
+        async function handleGoogleLogin(response) {
             try {
-                const base64Url = response.credential.split('.')[1];
-                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-                }).join(''));
-                const payload = JSON.parse(jsonPayload);
-                usuarioEmail = payload.email;
-            } catch(e) {
-                usuarioEmail = null;
-            }
-
-            if (usuarioEmail) {
-                ativarInterfaceLogada(usuarioEmail);
-                sincronizarUsuarioBackend(usuarioEmail, googleCredentialToken);
+                await authClient.login(response.credential);
                 fecharModalLogin();
-            } else {
-                alert('Erro ao identificar e-mail do login Google.');
+            } catch (error) {
+                alert(error.message || 'Não foi possível entrar com o Google.');
+            }
+        }
+
+        function aplicarSessao(session) {
+            usuarioEmail = session?.email || null;
+            saldoCreditos = Number(session?.creditos || 0);
+            usuarioEhAdmin = session?.isAdmin === true;
+
+            document.getElementById('googleLoginWrapper').style.display = usuarioEmail ? 'none' : 'block';
+            document.getElementById('userProfileBadge').style.display = usuarioEmail ? 'flex' : 'none';
+            document.getElementById('creditsBadge').style.display = usuarioEmail ? 'flex' : 'none';
+            document.getElementById('adminAffiliateBtn').style.display = usuarioEhAdmin ? 'inline-flex' : 'none';
+            if (usuarioEmail) document.getElementById('userEmailDisplay').innerText = usuarioEmail;
+            atualizarInterfaceSaldo();
+        }
+
+        async function sairDaConta() {
+            try {
+                await authClient.logout();
+                if (window.google?.accounts?.id) google.accounts.id.disableAutoSelect();
+            } catch (error) {
+                alert(error.message || 'Não foi possível sair.');
             }
         }
 
@@ -1589,27 +1602,6 @@
             document.getElementById('userProfileBadge').style.display = 'flex';
             document.getElementById('userEmailDisplay').innerText = email;
             document.getElementById('creditsBadge').style.display = 'flex';
-        }
-
-        async function sincronizarUsuarioBackend(email, credential) {
-            try {
-                const res = await fetch('/api/login-google', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email, credential: credential })
-                });
-                const data = await res.json();
-                if (data.success && data.creditos !== undefined) {
-                    saldoCreditos = data.creditos;
-                    usuarioEhAdmin = data.isAdmin === true;
-                    atualizarInterfaceSaldo();
-
-                    const adminBtn = document.getElementById('adminAffiliateBtn');
-                    if (adminBtn) {
-                        adminBtn.style.display = usuarioEhAdmin ? 'inline-flex' : 'none';
-                    }
-                }
-            } catch (e) { console.error("Erro ao sincronizar user:", e); }
         }
 
         function dispararSeletorArquivo(event) {
@@ -1982,10 +1974,9 @@
                 const blob = dataURItoBlob(imgFinal);
                 const formData = new FormData();
                 formData.append('imagem', blob, 'rosto.jpg');
-                formData.append('email', usuarioEmail);
-
-                const response = await fetch('/api/escanear-rosto', {
+                const response = await authClient.request('/api/escanear-rosto', {
                     method: 'POST',
+                    headers: { 'Idempotency-Key': crypto.randomUUID() },
                     body: formData
                 });
 
@@ -1995,6 +1986,11 @@
                     data = await response.json();
                 } catch (e) {
                     throw new Error(`O servidor retornou uma resposta inválida (HTTP ${response.status}).`);
+                }
+
+                if (data?.creditos !== undefined) {
+                    saldoCreditos = Number(data.creditos);
+                    atualizarInterfaceSaldo();
                 }
 
                 if (!response.ok || !data.success) {
@@ -2018,42 +2014,7 @@
                     Array.isArray(data.perfis_encontrados) ? data.perfis_encontrados :
                     [];
 
-                // 3. A busca foi concluída. Agora desconta 1 crédito.
-                const resDesconto = await fetch('/api/descontar-credito', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: usuarioEmail })
-                });
-
-                let dataDesconto = null;
-
-                try {
-                    dataDesconto = await resDesconto.json();
-                } catch (e) {
-                    throw new Error('A busca foi concluída, mas o servidor não conseguiu atualizar o saldo.');
-                }
-
-                if (!resDesconto.ok || !dataDesconto.success) {
-                    botaoElemento.disabled = false;
-                    botaoElemento.innerHTML = '<i class="fa-solid fa-unlock-keyhole"></i> DESBLOQUEAR RESULTADOS';
-
-                    alert(
-                        dataDesconto?.error ||
-                        'A busca foi concluída, mas não foi possível descontar o crédito.'
-                    );
-
-                    if (resDesconto.status === 403) {
-                        abrirModalPlanos();
-                    }
-
-                    return;
-                }
-
-                if (dataDesconto.creditos !== undefined) {
-                    saldoCreditos = Number(dataDesconto.creditos);
-                    atualizarInterfaceSaldo();
-                }
-
+                // 3. O servidor já consumiu exatamente um crédito junto com a busca.
                 // 4. Exibe os resultados reais retornados pelo FaceCheck.
                 renderizarResultadosReaisAPI(listaPerfis);
 
@@ -2318,10 +2279,10 @@
             startPixTimer(600);
 
             try {
-                const response = await fetch('/api/criar-pix', {
+                const response = await authClient.request('/api/criar-pix', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ valor: valor, plano: nomePacote, email: usuarioEmail, creditos: qtdCreditos, idempotencyKey: 'pix-' + Date.now() + '-' + Math.random() })
+                    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
+                    body: JSON.stringify({ valor: valor, plano: nomePacote, creditos: qtdCreditos })
                 });
 
                 const data = await response.json();
@@ -2340,10 +2301,10 @@
 
         async function verificarPagamentoPix() {
             try {
-                const response = await fetch('/api/verificar-pix', {
+                const response = await authClient.request('/api/verificar-pix', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: usuarioEmail, transaction_id: idTransacaoAtual })
+                    body: JSON.stringify({ transaction_id: idTransacaoAtual })
                 });
 
                 const data = await response.json();
@@ -2469,7 +2430,7 @@
         ========================================================= */
 
         function abrirPainelAfiliados() {
-            if (!usuarioEhAdmin || !googleCredentialToken) return;
+            if (!usuarioEhAdmin) return;
 
             const modal = document.getElementById('modalAfiliadosAdmin');
             modal.style.display = 'flex';
@@ -2490,12 +2451,10 @@
             lista.innerHTML = '';
 
             try {
-                const res = await fetch('/api/admin/afiliados/listar', {
+                const res = await authClient.request('/api/admin/afiliados/listar', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        credential: googleCredentialToken
-                    })
+                    body: '{}'
                 });
 
                 const data = await res.json();
@@ -2607,11 +2566,10 @@
             }
 
             try {
-                const res = await fetch('/api/admin/afiliados/criar', {
+                const res = await authClient.request('/api/admin/afiliados/criar', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        credential: googleCredentialToken,
                         nome,
                         email,
                         percentual
@@ -2642,11 +2600,10 @@
             const status = document.getElementById(`status_${codigo}`).value;
 
             try {
-                const res = await fetch('/api/admin/afiliados/atualizar', {
+                const res = await authClient.request('/api/admin/afiliados/atualizar', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        credential: googleCredentialToken,
                         codigo,
                         percentual,
                         status
@@ -2673,11 +2630,10 @@
             if (!confirmar) return;
 
             try {
-                const res = await fetch('/api/admin/afiliados/pagar', {
+                const res = await authClient.request('/api/admin/afiliados/pagar', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        credential: googleCredentialToken,
                         codigo
                     })
                 });
