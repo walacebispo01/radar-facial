@@ -1093,16 +1093,64 @@
             line-height: 1.45;
         }
 
-        @media (max-width: 720px) {
+        /* Painel de afiliados responsivo: evita estouro e rolagem horizontal */
+        .affiliate-admin-panel {
+            width: min(900px, calc(100vw - 32px));
+            max-width: 900px;
+            max-height: 86vh;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .affiliate-admin-grid {
+            grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 110px;
+        }
+
+        .affiliate-list,
+        .affiliate-row {
+            min-width: 0;
+            width: 100%;
+        }
+
+        .affiliate-row {
+            grid-template-columns: minmax(120px, 1.1fr) minmax(180px, 1.6fr) 90px 105px 44px 80px;
+        }
+
+        .affiliate-row > * {
+            min-width: 0;
+            max-width: 100%;
+        }
+
+        .affiliate-name,
+        .affiliate-code {
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        @media (max-width: 760px) {
+            .affiliate-admin-panel {
+                width: calc(100vw - 20px);
+                padding: 24px 18px;
+                border-radius: 24px;
+            }
+
             .affiliate-admin-grid {
                 grid-template-columns: 1fr;
             }
+
             .affiliate-row {
                 grid-template-columns: 1fr 1fr;
+                gap: 8px;
             }
+
             .affiliate-row .affiliate-name,
             .affiliate-row .affiliate-code {
                 grid-column: 1 / -1;
+            }
+
+            .affiliate-row button,
+            .affiliate-row select {
+                width: 100%;
             }
         }
 
