@@ -2,9 +2,12 @@
   "name": "radar-facial",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "test": "node --test test/*.test.js",
+    "test:db": "node scripts/test-db.js",
+    "check": "node --check server.js && node --check lib/database.js && node --check lib/postgres-store.js"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +19,10 @@
     "dotenv": "^18.0.1",
     "express": "^5.2.1",
     "mercadopago": "^3.6.1",
-    "multer": "^2.4.0"
+    "multer": "^2.4.0",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8"
   }
 }

@@ -1,7 +1,7 @@
-require('dotenv').config();
-
-const fs = require('fs');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env'), quiet: true });
+const { createPool } = require('./lib/database');
+const { createStore, StoreError } = require('./lib/postgres-store');
 const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
@@ -10,6 +10,8 @@ const axios = require('axios');
 const FormData = require('form-data');
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 
+function createApp({ store, payment: paymentOverride, validateGoogle } = {}) {
+if (!store) throw new Error('Persistência PostgreSQL obrigatória.');
 const app = express();
 
 /* =========================================================
@@ -44,162 +46,11 @@ if (!process.env.MERCADOPAGO_TOKEN) {
 }
 
 const client = new MercadoPagoConfig({
-    accessToken: process.env.MERCADOPAGO_TOKEN || ''
+    accessToken: process.env.MERCADOPAGO_TOKEN || '',
+    options: { timeout: 15000 }
 });
 
-const payment = new Payment(client);
-
-
-/* =========================================================
-   ARMAZENAMENTO
-========================================================= */
-
-const DATA_FILE = path.join(
-    __dirname,
-    'data',
-    'radar-data.json'
-);
-
-
-function carregarDadosPersistidos() {
-
-    try {
-
-        const pasta = path.dirname(DATA_FILE);
-
-        if (!fs.existsSync(pasta)) {
-            fs.mkdirSync(pasta, {
-                recursive: true
-            });
-        }
-
-        if (!fs.existsSync(DATA_FILE)) {
-
-            return {
-                transacoes: {},
-                usuariosCreditos: {},
-                afiliados: {},
-                comissoesAfiliados: {},
-                cliquesAfiliados: [],
-                repassesAfiliados: []
-            };
-        }
-
-        const raw = fs.readFileSync(
-            DATA_FILE,
-            'utf8'
-        );
-
-        if (!raw.trim()) {
-
-            return {
-                transacoes: {},
-                usuariosCreditos: {},
-                afiliados: {},
-                comissoesAfiliados: {},
-                cliquesAfiliados: [],
-                repassesAfiliados: []
-            };
-        }
-
-        const parsed = JSON.parse(raw);
-
-        return {
-            transacoes: parsed.transacoes || {},
-            usuariosCreditos:
-                parsed.usuariosCreditos || {},
-            afiliados: parsed.afiliados || {},
-            comissoesAfiliados: parsed.comissoesAfiliados || {},
-            cliquesAfiliados: Array.isArray(parsed.cliquesAfiliados) ? parsed.cliquesAfiliados : [],
-            repassesAfiliados: Array.isArray(parsed.repassesAfiliados) ? parsed.repassesAfiliados : []
-        };
-
-    } catch (error) {
-
-        console.error(
-            'Erro ao carregar dados persistidos:',
-            error.message
-        );
-
-        return {
-            transacoes: {},
-            usuariosCreditos: {},
-            afiliados: {},
-            comissoesAfiliados: {},
-            cliquesAfiliados: [],
-            repassesAfiliados: []
-        };
-    }
-}
-
-
-const dbStorage = carregarDadosPersistidos();
-
-const transacoes =
-    dbStorage.transacoes;
-
-const usuariosCreditos =
-    dbStorage.usuariosCreditos;
-
-const afiliados =
-    dbStorage.afiliados || {};
-
-const comissoesAfiliados =
-    dbStorage.comissoesAfiliados || {};
-
-const cliquesAfiliados =
-    Array.isArray(dbStorage.cliquesAfiliados) ? dbStorage.cliquesAfiliados : [];
-
-const repassesAfiliados =
-    Array.isArray(dbStorage.repassesAfiliados) ? dbStorage.repassesAfiliados : [];
-
-
-function salvarDadosPersistidos() {
-
-    try {
-
-        const pasta =
-            path.dirname(DATA_FILE);
-
-        if (!fs.existsSync(pasta)) {
-
-            fs.mkdirSync(
-                pasta,
-                {
-                    recursive: true
-                }
-            );
-        }
-
-        const data = {
-            transacoes,
-            usuariosCreditos,
-            afiliados,
-            comissoesAfiliados,
-            cliquesAfiliados,
-            repassesAfiliados
-        };
-
-        fs.writeFileSync(
-            DATA_FILE,
-            JSON.stringify(
-                data,
-                null,
-                2
-            ),
-            'utf8'
-        );
-
-    } catch (error) {
-
-        console.error(
-            'Erro ao salvar dados persistidos:',
-            error.message
-        );
-
-        throw error;
-    }
-}
+const payment = paymentOverride || new Payment(client);
 
 
 /* =========================================================
@@ -207,6 +58,7 @@ function salvarDadosPersistidos() {
 ========================================================= */
 
 async function validarTokenGoogle(credential) {
+    if (validateGoogle) return validateGoogle(credential);
 
     if (!credential) {
         return null;
@@ -307,339 +159,96 @@ async function validarAdminPorCredential(credential) {
     return email;
 }
 
-function gerarIdAfiliado() {
-    return `af_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+// Mantém erros públicos existentes e não expõe detalhes do PostgreSQL.
+function erroAfiliado(res, error, fallback) {
+    return res.status(error instanceof StoreError ? error.status : 500).json({
+        success: false,
+        error: error instanceof StoreError && error.status < 500 ? error.message : fallback
+    });
 }
 
-function gerarCodigoAfiliadoUnico() {
-    let codigo;
-
-    do {
-        codigo = `af_${crypto.randomBytes(6).toString('hex')}`;
-    } while (afiliados[codigo]);
-
-    return codigo;
+function chaveIdempotencia(req) {
+    const key = req.get('Idempotency-Key');
+    if (key && (key.length > 200 || !key.trim())) {
+        throw new StoreError('Chave de idempotência inválida.', 400);
+    }
+    return key || null;
 }
-
-function gerarIdComissao(paymentId) {
-    return `com_${String(paymentId)}`;
-}
-
-function registrarComissaoSeNecessario(transaction, paymentId, mpCheck) {
-    if (!transaction || !transaction.afiliado_codigo) return;
-
-    const codigo = normalizarCodigoAfiliado(transaction.afiliado_codigo);
-    const afiliado = afiliados[codigo];
-
-    if (!afiliado || afiliado.status !== 'ativo') return;
-
-    const idComissao = gerarIdComissao(paymentId);
-    if (comissoesAfiliados[idComissao]) return;
-
-    const valorPago = Number(
-        mpCheck?.transaction_amount ??
-        transaction.valor_pago ??
-        0
-    );
-
-    if (!Number.isFinite(valorPago) || valorPago <= 0) return;
-
-    const percentual = Number(afiliado.comissao_percentual);
-    if (![10, 15].includes(percentual)) return;
-
-    comissoesAfiliados[idComissao] = {
-        id: idComissao,
-        payment_id: String(paymentId),
-        afiliado_codigo: codigo,
-        afiliado_id: afiliado.id,
-        percentual,
-        valor_venda: Number(valorPago.toFixed(2)),
-        valor_comissao: Number((valorPago * percentual / 100).toFixed(2)),
-        status: 'disponivel',
-        criado_em: new Date().toISOString()
-    };
-
-    transaction.comissao_afiliado_id = idComissao;
-}
-
-
-/* =========================================================
-   ROTAS ADMINISTRATIVAS DE AFILIADOS
-========================================================= */
 
 app.post('/api/admin/afiliados/listar', async (req, res) => {
     try {
-        const adminEmail = await validarAdminPorCredential(req.body?.credential);
-
-        if (!adminEmail) {
-            return res.status(403).json({
-                success: false,
-                error: 'Acesso administrativo não autorizado.'
-            });
+        if (!await validarAdminPorCredential(req.body?.credential)) {
+            return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
         }
-
-        const lista = Object.values(afiliados)
-            .map(a => obterResumoAfiliado(a.codigo))
-            .sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
-
-        return res.json({
-            success: true,
-            afiliados: lista
-        });
-    } catch (error) {
-        console.error('[AFILIADOS] Erro ao listar:', error.message);
-        return res.status(500).json({
-            success: false,
-            error: 'Erro ao carregar afiliados.'
-        });
-    }
+        return res.json({ success: true, afiliados: await store.listAffiliates() });
+    } catch (error) { return erroAfiliado(res, error, 'Erro ao carregar afiliados.'); }
 });
 
 app.post('/api/admin/afiliados/criar', async (req, res) => {
     try {
-        const adminEmail = await validarAdminPorCredential(req.body?.credential);
-
-        if (!adminEmail) {
-            return res.status(403).json({
-                success: false,
-                error: 'Acesso administrativo não autorizado.'
-            });
+        if (!await validarAdminPorCredential(req.body?.credential)) {
+            return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
         }
-
         const nome = String(req.body?.nome || '').trim().slice(0, 100);
         const email = String(req.body?.email || '').toLowerCase().trim().slice(0, 160);
-        const codigo = gerarCodigoAfiliadoUnico();
         const percentual = Number(req.body?.percentual);
-
-        if (!nome) {
-            return res.status(400).json({
-                success: false,
-                error: 'Nome do afiliado é obrigatório.'
-            });
-        }
-
-        if (![10, 15].includes(percentual)) {
-            return res.status(400).json({
-                success: false,
-                error: 'A comissão deve ser 10% ou 15%.'
-            });
-        }
-
-        afiliados[codigo] = {
-            id: gerarIdAfiliado(),
-            nome,
-            email,
-            codigo,
-            comissao_percentual: percentual,
-            status: 'ativo',
-            criado_em: new Date().toISOString(),
-            atualizado_em: new Date().toISOString()
-        };
-
-        salvarDadosPersistidos();
-
-        return res.json({
-            success: true,
-            afiliado: afiliados[codigo]
-        });
-    } catch (error) {
-        console.error('[AFILIADOS] Erro ao criar:', error.message);
-        return res.status(500).json({
-            success: false,
-            error: 'Erro ao criar afiliado.'
-        });
-    }
+        if (!nome) return res.status(400).json({ success: false, error: 'Nome do afiliado é obrigatório.' });
+        if (![10, 15].includes(percentual)) return res.status(400).json({ success: false, error: 'A comissão deve ser 10% ou 15%.' });
+        return res.json({ success: true, afiliado: await store.createAffiliate({ nome, email, percentual }) });
+    } catch (error) { return erroAfiliado(res, error, 'Erro ao criar afiliado.'); }
 });
 
 app.post('/api/admin/afiliados/atualizar', async (req, res) => {
     try {
-        const adminEmail = await validarAdminPorCredential(req.body?.credential);
-
-        if (!adminEmail) {
-            return res.status(403).json({
-                success: false,
-                error: 'Acesso administrativo não autorizado.'
-            });
+        if (!await validarAdminPorCredential(req.body?.credential)) {
+            return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
         }
-
         const codigo = normalizarCodigoAfiliado(req.body?.codigo);
         const percentual = Number(req.body?.percentual);
         const status = req.body?.status === 'inativo' ? 'inativo' : 'ativo';
-
-        if (!afiliados[codigo]) {
-            return res.status(404).json({
-                success: false,
-                error: 'Afiliado não encontrado.'
-            });
-        }
-
-        if (![10, 15].includes(percentual)) {
-            return res.status(400).json({
-                success: false,
-                error: 'A comissão deve ser 10% ou 15%.'
-            });
-        }
-
-        afiliados[codigo].comissao_percentual = percentual;
-        afiliados[codigo].status = status;
-        afiliados[codigo].atualizado_em = new Date().toISOString();
-
-        salvarDadosPersistidos();
-
-        return res.json({
-            success: true,
-            afiliado: afiliados[codigo]
-        });
-    } catch (error) {
-        console.error('[AFILIADOS] Erro ao atualizar:', error.message);
-        return res.status(500).json({
-            success: false,
-            error: 'Erro ao atualizar afiliado.'
-        });
-    }
+        if (!await store.findAffiliate(codigo)) return res.status(404).json({ success: false, error: 'Afiliado não encontrado.' });
+        if (![10, 15].includes(percentual)) return res.status(400).json({ success: false, error: 'A comissão deve ser 10% ou 15%.' });
+        const afiliado = await store.updateAffiliate(codigo, percentual, status);
+        if (!afiliado) return res.status(404).json({ success: false, error: 'Afiliado não encontrado.' });
+        return res.json({ success: true, afiliado });
+    } catch (error) { return erroAfiliado(res, error, 'Erro ao atualizar afiliado.'); }
 });
 
-
-function obterResumoAfiliado(codigo) {
-    const afiliado = afiliados[codigo];
-    const comissoes = Object.values(comissoesAfiliados)
-        .filter(c => c.afiliado_codigo === codigo);
-
-    const vendas = comissoes.length;
-    const cliques = cliquesAfiliados.filter(c => c.afiliado_codigo === codigo).length;
-    const faturamento = comissoes.reduce((s, c) => s + Number(c.valor_venda || 0), 0);
-    const comissaoTotal = comissoes.reduce((s, c) => s + Number(c.valor_comissao || 0), 0);
-    const comissaoPaga = comissoes
-        .filter(c => c.status === 'pago')
-        .reduce((s, c) => s + Number(c.valor_comissao || 0), 0);
-    const comissaoDisponivel = comissoes
-        .filter(c => c.status === 'disponivel' || c.status === 'pendente')
-        .reduce((s, c) => s + Number(c.valor_comissao || 0), 0);
-
-    return {
-        ...afiliado,
-        metricas: {
-            cliques,
-            vendas,
-            conversao: cliques > 0 ? Number(((vendas / cliques) * 100).toFixed(2)) : 0,
-            faturamento: Number(faturamento.toFixed(2)),
-            comissao_total: Number(comissaoTotal.toFixed(2)),
-            comissao_disponivel: Number(comissaoDisponivel.toFixed(2)),
-            comissao_paga: Number(comissaoPaga.toFixed(2))
-        },
-        repasses: repassesAfiliados
-            .filter(r => r.afiliado_codigo === codigo)
-            .sort((a, b) => String(b.pago_em).localeCompare(String(a.pago_em)))
-    };
-}
-
-app.post('/api/afiliados/clique', (req, res) => {
-    const codigo = normalizarCodigoAfiliado(req.body?.codigo);
-    const afiliado = afiliados[codigo];
-
-    if (!afiliado || afiliado.status !== 'ativo') {
-        return res.status(404).json({ success: false, error: 'Afiliado inválido.' });
-    }
-
-    cliquesAfiliados.push({
-        id: `clk_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
-        afiliado_codigo: codigo,
-        criado_em: new Date().toISOString()
-    });
-
-    salvarDadosPersistidos();
-    return res.json({ success: true });
+app.post('/api/afiliados/clique', async (req, res) => {
+    try {
+        if (!await store.recordClick(normalizarCodigoAfiliado(req.body?.codigo))) {
+            return res.status(404).json({ success: false, error: 'Afiliado inválido.' });
+        }
+        return res.json({ success: true });
+    } catch (error) { return erroAfiliado(res, error, 'Erro ao registrar clique.'); }
 });
 
 app.post('/api/admin/afiliados/resumo', async (req, res) => {
     try {
-        const adminEmail = await validarAdminPorCredential(req.body?.credential);
-        if (!adminEmail) {
+        if (!await validarAdminPorCredential(req.body?.credential)) {
             return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
         }
-
-        const codigo = normalizarCodigoAfiliado(req.body?.codigo);
-        if (!afiliados[codigo]) {
-            return res.status(404).json({ success: false, error: 'Afiliado não encontrado.' });
-        }
-
-        return res.json({ success: true, afiliado: obterResumoAfiliado(codigo) });
-    } catch (error) {
-        return res.status(500).json({ success: false, error: 'Erro ao carregar resumo do afiliado.' });
-    }
+        const afiliado = await store.affiliateSummary(normalizarCodigoAfiliado(req.body?.codigo));
+        if (!afiliado) return res.status(404).json({ success: false, error: 'Afiliado não encontrado.' });
+        return res.json({ success: true, afiliado });
+    } catch (error) { return erroAfiliado(res, error, 'Erro ao carregar resumo do afiliado.'); }
 });
 
 app.post('/api/admin/afiliados/pagar', async (req, res) => {
     try {
         const adminEmail = await validarAdminPorCredential(req.body?.credential);
-        if (!adminEmail) {
-            return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
-        }
-
-        const codigo = normalizarCodigoAfiliado(req.body?.codigo);
-        const afiliado = afiliados[codigo];
-
-        if (!afiliado) {
-            return res.status(404).json({ success: false, error: 'Afiliado não encontrado.' });
-        }
-
-        const abertas = Object.values(comissoesAfiliados).filter(c =>
-            c.afiliado_codigo === codigo &&
-            (c.status === 'disponivel' || c.status === 'pendente')
-        );
-
-        if (!abertas.length) {
-            return res.status(400).json({ success: false, error: 'Não há comissão disponível para marcar como paga.' });
-        }
-
-        const valor = Number(abertas.reduce((s, c) => s + Number(c.valor_comissao || 0), 0).toFixed(2));
-        const repasseId = `rep_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
-        const pagoEm = new Date().toISOString();
-
-        abertas.forEach(c => {
-            c.status = 'pago';
-            c.pago_em = pagoEm;
-            c.repasse_id = repasseId;
-        });
-
-        repassesAfiliados.push({
-            id: repasseId,
-            afiliado_codigo: codigo,
-            afiliado_id: afiliado.id,
-            valor,
-            quantidade_comissoes: abertas.length,
-            pago_em: pagoEm,
-            registrado_por: adminEmail
-        });
-
-        salvarDadosPersistidos();
-
-        return res.json({
-            success: true,
-            repasse: repassesAfiliados[repassesAfiliados.length - 1],
-            afiliado: obterResumoAfiliado(codigo)
-        });
-    } catch (error) {
-        return res.status(500).json({ success: false, error: 'Erro ao registrar pagamento do afiliado.' });
-    }
+        if (!adminEmail) return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
+        const result = await store.payAffiliate(normalizarCodigoAfiliado(req.body?.codigo), adminEmail, chaveIdempotencia(req));
+        return res.json({ success: true, ...result });
+    } catch (error) { return erroAfiliado(res, error, 'Erro ao registrar pagamento do afiliado.'); }
 });
 
-app.get('/api/afiliados/validar/:codigo', (req, res) => {
-    const codigo = normalizarCodigoAfiliado(req.params.codigo);
-    const afiliado = afiliados[codigo];
-
-    if (!afiliado || afiliado.status !== 'ativo') {
-        return res.status(404).json({
-            success: false,
-            valido: false
-        });
-    }
-
-    return res.json({
-        success: true,
-        valido: true,
-        codigo: afiliado.codigo
-    });
+app.get('/api/afiliados/validar/:codigo', async (req, res) => {
+    try {
+        const afiliado = await store.findAffiliate(normalizarCodigoAfiliado(req.params.codigo));
+        if (!afiliado || afiliado.status !== 'ativo') return res.status(404).json({ success: false, valido: false });
+        return res.json({ success: true, valido: true, codigo: afiliado.codigo });
+    } catch (error) { return res.status(500).json({ success: false, valido: false }); }
 });
 
 
@@ -684,19 +293,7 @@ app.post(
             }
 
 
-            if (
-                usuariosCreditos[
-                    emailValidado
-                ] === undefined
-            ) {
-
-                usuariosCreditos[
-                    emailValidado
-                ] = 0;
-
-                salvarDadosPersistidos();
-            }
-
+            const saldo = await store.login(emailValidado);
 
             return res.json({
 
@@ -705,10 +302,7 @@ app.post(
                 email:
                     emailValidado,
 
-                creditos:
-                    usuariosCreditos[
-                        emailValidado
-                    ],
+                creditos: saldo,
 
                 isAdmin:
                     emailEhAdmin(
@@ -818,13 +412,8 @@ app.post(
                     afiliado_codigo
                 );
 
-            const afiliadoValido =
-                codigoAfiliadoNormalizado &&
-                afiliados[codigoAfiliadoNormalizado] &&
-                afiliados[codigoAfiliadoNormalizado].status === 'ativo'
-                    ? codigoAfiliadoNormalizado
-                    : null;
-
+            const afiliadoEncontrado = await store.findAffiliate(codigoAfiliadoNormalizado);
+            const afiliadoValido = afiliadoEncontrado?.status === 'ativo' ? afiliadoEncontrado.codigo : null;
 
             const valorNumerico =
                 Number(valor);
@@ -834,7 +423,7 @@ app.post(
                 !Number.isFinite(
                     valorNumerico
                 ) ||
-                valorNumerico <= 0
+                valorNumerico <= 0 || valorNumerico > 9999999999.99
             ) {
 
                 return res.status(400).json({
@@ -848,7 +437,7 @@ app.post(
 
 
             if (
-                !Number.isInteger(
+                !Number.isSafeInteger(
                     qtdCreditos
                 ) ||
                 qtdCreditos <= 0
@@ -864,11 +453,10 @@ app.post(
             }
 
 
-            const idempotencyKey =
-                `pix_${Date.now()}_${Math.random()
-                    .toString(36)
-                    .slice(2, 12)}`;
-
+            const requestKey = chaveIdempotencia(req);
+            const idempotencyKey = requestKey
+                ? 'pix_' + crypto.createHash('sha256').update(JSON.stringify([emailNormalizado, requestKey])).digest('hex')
+                : 'pix_' + crypto.randomUUID();
 
             const body = {
 
@@ -956,44 +544,16 @@ app.post(
                 null;
 
 
-            transacoes[
-                String(result.id)
-            ] = {
-
-                status:
-                    result.status ||
-                    'pending',
-
-                status_detail:
-                    result.status_detail ||
-                    null,
-
-                email:
-                    emailNormalizado,
-
-                buscas_restantes:
-                    qtdCreditos,
-
-                criado_em:
-                    new Date()
-                        .toISOString(),
-
-                credited:
-                    false,
-
-                idempotency_key:
-                    idempotencyKey,
-
-                afiliado_codigo:
-                    afiliadoValido,
-
-                valor_pago:
-                    Number(valorNumerico.toFixed(2))
-            };
-
-
-            salvarDadosPersistidos();
-
+            await store.createPayment({
+                payment_id: String(result.id),
+                status: result.status || 'pending',
+                status_detail: result.status_detail || null,
+                email: emailNormalizado,
+                buscas_restantes: qtdCreditos,
+                idempotency_key: idempotencyKey,
+                afiliado_codigo: afiliadoValido,
+                valor_pago: Number(valorNumerico.toFixed(2))
+            });
 
             if (
                 !qrCode &&
@@ -1054,6 +614,10 @@ app.post(
 
         } catch (error) {
 
+            if (error instanceof StoreError) {
+                return res.status(error.status).json({ success: false,
+                    error: error.status < 500 ? error.message : 'Erro ao gerar o pagamento via PIX.' });
+            }
             console.error(
                 'ERRO AO CRIAR PIX:',
                 error.response?.data ||
@@ -1085,435 +649,46 @@ app.post(
 
 
 /* =========================================================
-   VERIFICAR PIX
+   PAGAMENTOS E CRÉDITOS — TRANSAÇÕES POSTGRESQL
 ========================================================= */
 
-app.post(
-    '/api/verificar-pix',
-    async (req, res) => {
+const consultarPagamento = id => payment.get({ id });
 
-        try {
-
-            const {
-                transaction_id
-            } = req.body;
-
-
-            if (!transaction_id) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    error:
-                        'ID da transação não informado.'
-                });
-            }
-
-
-            const transaction =
-                transacoes[
-                    String(transaction_id)
-                ];
-
-
-            if (!transaction) {
-
-                return res.status(404).json({
-
-                    success: false,
-
-                    error:
-                        'Transação não encontrada.'
-                });
-            }
-
-
-            const mpCheck =
-                await payment.get({
-
-                    id:
-                        String(
-                            transaction_id
-                        )
-                });
-
-
-            const currentStatus =
-                mpCheck.status;
-
-
-            transaction.status =
-                currentStatus;
-
-            transaction.status_detail =
-                mpCheck.status_detail ||
-                null;
-
-
-            let pago = false;
-
-
-            if (
-                currentStatus ===
-                'approved'
-            ) {
-
-                pago = true;
-
-
-                if (
-                    !transaction.credited
-                ) {
-
-                    const email =
-                        transaction.email;
-
-                    const quantidade =
-                        Number(
-                            transaction
-                                .buscas_restantes ||
-                            0
-                        );
-
-
-                    if (
-                        email &&
-                        quantidade > 0
-                    ) {
-
-                        const antes =
-                            Number(
-                                usuariosCreditos[
-                                    email
-                                ] || 0
-                            );
-
-
-                        usuariosCreditos[
-                            email
-                        ] =
-                            antes +
-                            quantidade;
-
-
-                        transaction.credited =
-                            true;
-
-
-                        transaction.credited_em =
-                            new Date()
-                                .toISOString();
-
-
-                        registrarComissaoSeNecessario(
-                            transaction,
-                            transaction_id,
-                            mpCheck
-                        );
-
-                        salvarDadosPersistidos();
-                    }
-                }
-            }
-
-
-            const email =
-                transaction.email;
-
-
-            const saldo =
-                email
-                    ? Number(
-                        usuariosCreditos[
-                            email
-                        ] || 0
-                    )
-                    : 0;
-
-
-            return res.json({
-
-                success: true,
-
-                pago,
-
-                status:
-                    currentStatus,
-
-                creditos:
-                    saldo,
-
-                transaction_id:
-                    String(
-                        transaction_id
-                    )
-            });
-
-
-        } catch (error) {
-
-            console.error(
-                'Erro ao verificar PIX:',
-                error.response?.data ||
-                error.message
-            );
-
-
-            return res.status(500).json({
-
-                success: false,
-
-                error:
-                    'Erro ao verificar pagamento.'
-            });
-        }
+app.post('/api/verificar-pix', async (req, res) => {
+    try {
+        const { transaction_id } = req.body;
+        if (!transaction_id) return res.status(400).json({ success: false, error: 'ID da transação não informado.' });
+        const result = await store.syncPayment(String(transaction_id), consultarPagamento);
+        if (!result) return res.status(404).json({ success: false, error: 'Transação não encontrada.' });
+        return res.json({ success: true, ...result, transaction_id: String(transaction_id) });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: 'Erro ao verificar pagamento.' });
     }
-);
+});
 
-
-/* =========================================================
-   WEBHOOK MERCADO PAGO
-========================================================= */
-
-app.post(
-    '/api/mercadopago-webhook',
-    async (req, res) => {
-
-        res.sendStatus(200);
-
-
-        try {
-
-            const queryData =
-                req.query || {};
-
-            const bodyData =
-                req.body || {};
-
-
-            let paymentId =
-
-                queryData['data.id'] ||
-
-                queryData.id ||
-
-                bodyData.data?.id ||
-
-                bodyData.id;
-
-
-            if (!paymentId) {
-                return;
-            }
-
-
-            const mpCheck =
-                await payment.get({
-
-                    id:
-                        String(
-                            paymentId
-                        )
-                });
-
-
-            const currentStatus =
-                mpCheck.status;
-
-
-            const transaction =
-                transacoes[
-                    String(paymentId)
-                ];
-
-
-            if (!transaction) {
-                return;
-            }
-
-
-            transaction.status =
-                currentStatus;
-
-
-            transaction.status_detail =
-                mpCheck.status_detail ||
-                null;
-
-
-            if (
-                currentStatus !==
-                    'approved' ||
-                transaction.credited
-            ) {
-
-                salvarDadosPersistidos();
-
-                return;
-            }
-
-
-            const email =
-                transaction.email;
-
-
-            const quantidade =
-                Number(
-                    transaction
-                        .buscas_restantes ||
-                    0
-                );
-
-
-            if (
-                !email ||
-                quantidade <= 0
-            ) {
-                return;
-            }
-
-
-            const antes =
-                Number(
-                    usuariosCreditos[
-                        email
-                    ] || 0
-                );
-
-
-            usuariosCreditos[
-                email
-            ] =
-                antes +
-                quantidade;
-
-
-            transaction.credited =
-                true;
-
-
-            transaction.credited_em =
-                new Date()
-                    .toISOString();
-
-
-            registrarComissaoSeNecessario(
-                transaction,
-                paymentId,
-                mpCheck
-            );
-
-            salvarDadosPersistidos();
-
-
-        } catch (error) {
-
-            console.error(
-                '[WEBHOOK] Erro:',
-                error.response?.data ||
-                error.message ||
-                error
-            );
-        }
+app.post('/api/mercadopago-webhook', async (req, res) => {
+    try {
+        const paymentId = req.query?.['data.id'] || req.query?.id || req.body?.data?.id || req.body?.id;
+        if (paymentId) await store.syncPayment(String(paymentId), consultarPagamento);
+        // Confirmar apenas depois do COMMIT permite ao provedor repetir falhas.
+        return res.sendStatus(200);
+    } catch (error) {
+        console.error('[WEBHOOK] Não foi possível persistir o pagamento.');
+        return res.sendStatus(500);
     }
-);
+});
 
-
-/* =========================================================
-   DESCONTAR CRÉDITO
-========================================================= */
-
-app.post(
-    '/api/descontar-credito',
-    async (req, res) => {
-
-        try {
-
-            const {
-                email
-            } = req.body;
-
-
-            if (!email) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    error:
-                        'E-mail obrigatório.'
-                });
-            }
-
-
-            const emailNormalizado =
-                String(email)
-                    .toLowerCase()
-                    .trim();
-
-
-            const saldo =
-                Number(
-                    usuariosCreditos[
-                        emailNormalizado
-                    ] || 0
-                );
-
-
-            if (saldo <= 0) {
-
-                return res.status(403).json({
-
-                    success: false,
-
-                    error:
-                        'Créditos esgotados.',
-
-                    creditos:
-                        0
-                });
-            }
-
-
-            usuariosCreditos[
-                emailNormalizado
-            ] =
-                saldo - 1;
-
-
-            salvarDadosPersistidos();
-
-
-            return res.json({
-
-                success: true,
-
-                creditos:
-                    usuariosCreditos[
-                        emailNormalizado
-                    ]
-            });
-
-
-        } catch (error) {
-
-            console.error(
-                'Erro ao descontar crédito:',
-                error.message
-            );
-
-
-            return res.status(500).json({
-
-                success: false,
-
-                error:
-                    'Erro ao descontar crédito.'
-            });
-        }
+app.post('/api/descontar-credito', async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ success: false, error: 'E-mail obrigatório.' });
+        const saldo = await store.debit(String(email).toLowerCase().trim());
+        if (saldo === null) return res.status(403).json({ success: false, error: 'Créditos esgotados.', creditos: 0 });
+        return res.json({ success: true, creditos: saldo });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: 'Erro ao descontar crédito.' });
     }
-);
+});
 
 
 /* =========================================================
@@ -2331,16 +1506,28 @@ app.use(
 );
 
 
+return app;
+}
+
 /* =========================================================
    SERVIDOR
 ========================================================= */
 
+async function startServer() {
+const pool = createPool();
+try {
+    await pool.query('SELECT 1');
+} catch (error) {
+    await pool.end();
+    throw new Error('Não foi possível conectar ao PostgreSQL. Verifique a configuração local.');
+}
+const app = createApp({ store: createStore(pool) });
 const PORT =
     process.env.PORT ||
     3000;
 
 
-app.listen(
+const server = app.listen(
     PORT,
     () => {
 
@@ -2381,3 +1568,28 @@ app.listen(
         );
     }
 );
+
+let shuttingDown = false;
+const shutdown = () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    server.close(() => pool.end().catch(() => { process.exitCode = 1; }));
+};
+process.once('SIGTERM', shutdown);
+process.once('SIGINT', shutdown);
+server.on('error', () => {
+    console.error('Não foi possível iniciar o servidor HTTP.');
+    pool.end().catch(() => {});
+    process.exitCode = 1;
+});
+return server;
+}
+
+if (require.main === module) {
+    startServer().catch(error => {
+        console.error(error.message);
+        process.exitCode = 1;
+    });
+}
+
+module.exports = { createApp, startServer };
