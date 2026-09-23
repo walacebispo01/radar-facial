@@ -76,7 +76,9 @@ function carregarDadosPersistidos() {
 
             return {
                 transacoes: {},
-                usuariosCreditos: {}
+                usuariosCreditos: {},
+                afiliados: {},
+                comissoesAfiliados: {}
             };
         }
 
@@ -89,7 +91,9 @@ function carregarDadosPersistidos() {
 
             return {
                 transacoes: {},
-                usuariosCreditos: {}
+                usuariosCreditos: {},
+                afiliados: {},
+                comissoesAfiliados: {}
             };
         }
 
@@ -98,7 +102,9 @@ function carregarDadosPersistidos() {
         return {
             transacoes: parsed.transacoes || {},
             usuariosCreditos:
-                parsed.usuariosCreditos || {}
+                parsed.usuariosCreditos || {},
+            afiliados: parsed.afiliados || {},
+            comissoesAfiliados: parsed.comissoesAfiliados || {}
         };
 
     } catch (error) {
@@ -124,6 +130,12 @@ const transacoes =
 const usuariosCreditos =
     dbStorage.usuariosCreditos;
 
+const afiliados =
+    dbStorage.afiliados || {};
+
+const comissoesAfiliados =
+    dbStorage.comissoesAfiliados || {};
+
 
 function salvarDadosPersistidos() {
 
@@ -144,7 +156,9 @@ function salvarDadosPersistidos() {
 
         const data = {
             transacoes,
-            usuariosCreditos
+            usuariosCreditos,
+            afiliados,
+            comissoesAfiliados
         };
 
         fs.writeFileSync(
@@ -237,6 +251,248 @@ async function validarTokenGoogle(credential) {
 }
 
 
+
+/* =========================================================
+   ADMIN / AFILIADOS
+   Os e-mails de administrador ficam SOMENTE no ambiente:
+   ADMIN_EMAILS=email1@dominio.com,email2@dominio.com
+========================================================= */
+
+function obterAdminsPermitidos() {
+    return String(process.env.ADMIN_EMAILS || '')
+        .split(',')
+        .map(email => email.toLowerCase().trim())
+        .filter(Boolean);
+}
+
+function emailEhAdmin(email) {
+    if (!email) return false;
+    return obterAdminsPermitidos().includes(
+        String(email).toLowerCase().trim()
+    );
+}
+
+function normalizarCodigoAfiliado(valor) {
+    return String(valor || '')
+        .toLowerCase()
+        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9_-]/g, '')
+        .slice(0, 40);
+}
+
+async function validarAdminPorCredential(credential) {
+    const email = await validarTokenGoogle(credential);
+    if (!email || !emailEhAdmin(email)) return null;
+    return email;
+}
+
+function gerarIdAfiliado() {
+    return `af_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function gerarIdComissao(paymentId) {
+    return `com_${String(paymentId)}`;
+}
+
+function registrarComissaoSeNecessario(transaction, paymentId, mpCheck) {
+    if (!transaction || !transaction.afiliado_codigo) return;
+
+    const codigo = normalizarCodigoAfiliado(transaction.afiliado_codigo);
+    const afiliado = afiliados[codigo];
+
+    if (!afiliado || afiliado.status !== 'ativo') return;
+
+    const idComissao = gerarIdComissao(paymentId);
+    if (comissoesAfiliados[idComissao]) return;
+
+    const valorPago = Number(
+        mpCheck?.transaction_amount ??
+        transaction.valor_pago ??
+        0
+    );
+
+    if (!Number.isFinite(valorPago) || valorPago <= 0) return;
+
+    const percentual = Number(afiliado.comissao_percentual);
+    if (![10, 15].includes(percentual)) return;
+
+    comissoesAfiliados[idComissao] = {
+        id: idComissao,
+        payment_id: String(paymentId),
+        afiliado_codigo: codigo,
+        afiliado_id: afiliado.id,
+        percentual,
+        valor_venda: Number(valorPago.toFixed(2)),
+        valor_comissao: Number((valorPago * percentual / 100).toFixed(2)),
+        status: 'pendente',
+        criado_em: new Date().toISOString()
+    };
+
+    transaction.comissao_afiliado_id = idComissao;
+}
+
+
+/* =========================================================
+   ROTAS ADMINISTRATIVAS DE AFILIADOS
+========================================================= */
+
+app.post('/api/admin/afiliados/listar', async (req, res) => {
+    try {
+        const adminEmail = await validarAdminPorCredential(req.body?.credential);
+
+        if (!adminEmail) {
+            return res.status(403).json({
+                success: false,
+                error: 'Acesso administrativo não autorizado.'
+            });
+        }
+
+        const lista = Object.values(afiliados)
+            .sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
+
+        return res.json({
+            success: true,
+            afiliados: lista
+        });
+    } catch (error) {
+        console.error('[AFILIADOS] Erro ao listar:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Erro ao carregar afiliados.'
+        });
+    }
+});
+
+app.post('/api/admin/afiliados/criar', async (req, res) => {
+    try {
+        const adminEmail = await validarAdminPorCredential(req.body?.credential);
+
+        if (!adminEmail) {
+            return res.status(403).json({
+                success: false,
+                error: 'Acesso administrativo não autorizado.'
+            });
+        }
+
+        const nome = String(req.body?.nome || '').trim().slice(0, 100);
+        const codigo = normalizarCodigoAfiliado(req.body?.codigo);
+        const percentual = Number(req.body?.percentual);
+
+        if (!nome || !codigo) {
+            return res.status(400).json({
+                success: false,
+                error: 'Nome e código do afiliado são obrigatórios.'
+            });
+        }
+
+        if (![10, 15].includes(percentual)) {
+            return res.status(400).json({
+                success: false,
+                error: 'A comissão deve ser 10% ou 15%.'
+            });
+        }
+
+        if (afiliados[codigo]) {
+            return res.status(409).json({
+                success: false,
+                error: 'Este código de afiliado já existe.'
+            });
+        }
+
+        afiliados[codigo] = {
+            id: gerarIdAfiliado(),
+            nome,
+            codigo,
+            comissao_percentual: percentual,
+            status: 'ativo',
+            criado_em: new Date().toISOString(),
+            atualizado_em: new Date().toISOString()
+        };
+
+        salvarDadosPersistidos();
+
+        return res.json({
+            success: true,
+            afiliado: afiliados[codigo]
+        });
+    } catch (error) {
+        console.error('[AFILIADOS] Erro ao criar:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Erro ao criar afiliado.'
+        });
+    }
+});
+
+app.post('/api/admin/afiliados/atualizar', async (req, res) => {
+    try {
+        const adminEmail = await validarAdminPorCredential(req.body?.credential);
+
+        if (!adminEmail) {
+            return res.status(403).json({
+                success: false,
+                error: 'Acesso administrativo não autorizado.'
+            });
+        }
+
+        const codigo = normalizarCodigoAfiliado(req.body?.codigo);
+        const percentual = Number(req.body?.percentual);
+        const status = req.body?.status === 'inativo' ? 'inativo' : 'ativo';
+
+        if (!afiliados[codigo]) {
+            return res.status(404).json({
+                success: false,
+                error: 'Afiliado não encontrado.'
+            });
+        }
+
+        if (![10, 15].includes(percentual)) {
+            return res.status(400).json({
+                success: false,
+                error: 'A comissão deve ser 10% ou 15%.'
+            });
+        }
+
+        afiliados[codigo].comissao_percentual = percentual;
+        afiliados[codigo].status = status;
+        afiliados[codigo].atualizado_em = new Date().toISOString();
+
+        salvarDadosPersistidos();
+
+        return res.json({
+            success: true,
+            afiliado: afiliados[codigo]
+        });
+    } catch (error) {
+        console.error('[AFILIADOS] Erro ao atualizar:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Erro ao atualizar afiliado.'
+        });
+    }
+});
+
+app.get('/api/afiliados/validar/:codigo', (req, res) => {
+    const codigo = normalizarCodigoAfiliado(req.params.codigo);
+    const afiliado = afiliados[codigo];
+
+    if (!afiliado || afiliado.status !== 'ativo') {
+        return res.status(404).json({
+            success: false,
+            valido: false
+        });
+    }
+
+    return res.json({
+        success: true,
+        valido: true,
+        codigo: afiliado.codigo
+    });
+});
+
+
 /* =========================================================
    LOGIN GOOGLE
 ========================================================= */
@@ -302,7 +558,12 @@ app.post(
                 creditos:
                     usuariosCreditos[
                         emailValidado
-                    ]
+                    ],
+
+                isAdmin:
+                    emailEhAdmin(
+                        emailValidado
+                    )
             });
 
 
@@ -340,7 +601,8 @@ app.post(
                 valor,
                 plano,
                 email,
-                creditos
+                creditos,
+                afiliado_codigo
             } = req.body;
 
 
@@ -399,6 +661,19 @@ app.post(
                     qtdCreditos = 40;
                 }
             }
+
+
+            const codigoAfiliadoNormalizado =
+                normalizarCodigoAfiliado(
+                    afiliado_codigo
+                );
+
+            const afiliadoValido =
+                codigoAfiliadoNormalizado &&
+                afiliados[codigoAfiliadoNormalizado] &&
+                afiliados[codigoAfiliadoNormalizado].status === 'ativo'
+                    ? codigoAfiliadoNormalizado
+                    : null;
 
 
             const valorNumerico =
@@ -476,7 +751,10 @@ app.post(
 
                     plano:
                         plano ||
-                        'Pacote de Créditos'
+                        'Pacote de Créditos',
+
+                    afiliado_codigo:
+                        afiliadoValido
                 }
             };
 
@@ -554,7 +832,13 @@ app.post(
                     false,
 
                 idempotency_key:
-                    idempotencyKey
+                    idempotencyKey,
+
+                afiliado_codigo:
+                    afiliadoValido,
+
+                valor_pago:
+                    Number(valorNumerico.toFixed(2))
             };
 
 
@@ -772,6 +1056,12 @@ app.post(
                                 .toISOString();
 
 
+                        registrarComissaoSeNecessario(
+                            transaction,
+                            transaction_id,
+                            mpCheck
+                        );
+
                         salvarDadosPersistidos();
                     }
                 }
@@ -957,6 +1247,12 @@ app.post(
                 new Date()
                     .toISOString();
 
+
+            registrarComissaoSeNecessario(
+                transaction,
+                paymentId,
+                mpCheck
+            );
 
             salvarDadosPersistidos();
 

@@ -989,7 +989,124 @@
             }
         }
 
-    </style>
+    
+        /* =========================================================
+           PAINEL ADMINISTRATIVO DE AFILIADOS
+        ========================================================= */
+        .admin-affiliate-btn {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid rgba(245, 158, 11, 0.45);
+            background: rgba(245, 158, 11, 0.10);
+            color: var(--gold);
+            padding: 8px 14px;
+            border-radius: 100px;
+            font-size: 0.82rem;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .affiliate-admin-panel {
+            width: min(760px, 94vw);
+            max-height: 86vh;
+            overflow-y: auto;
+            text-align: left;
+        }
+
+        .affiliate-admin-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr auto;
+            gap: 10px;
+            margin: 18px 0;
+        }
+
+        .affiliate-admin-input,
+        .affiliate-admin-select {
+            width: 100%;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.14);
+            color: #fff;
+            padding: 12px 14px;
+            border-radius: 12px;
+            outline: none;
+        }
+
+        .affiliate-admin-select option {
+            background: #0f172a;
+            color: #fff;
+        }
+
+        .affiliate-create-btn {
+            border: 0;
+            background: var(--gold-gradient);
+            color: #050505;
+            font-weight: 900;
+            padding: 12px 18px;
+            border-radius: 12px;
+            cursor: pointer;
+        }
+
+        .affiliate-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .affiliate-row {
+            display: grid;
+            grid-template-columns: minmax(130px, 1.2fr) minmax(150px, 1.5fr) 90px 100px auto;
+            gap: 10px;
+            align-items: center;
+            padding: 12px;
+            border-radius: 14px;
+            background: rgba(255,255,255,0.035);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .affiliate-code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            color: var(--gold);
+            font-size: 0.82rem;
+            overflow-wrap: anywhere;
+        }
+
+        .affiliate-copy-btn,
+        .affiliate-save-btn {
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.06);
+            color: #fff;
+            padding: 9px 10px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .affiliate-save-btn {
+            border-color: rgba(16,185,129,0.35);
+            color: #34d399;
+        }
+
+        .affiliate-admin-note {
+            color: var(--text-dim);
+            font-size: 0.78rem;
+            line-height: 1.45;
+        }
+
+        @media (max-width: 720px) {
+            .affiliate-admin-grid {
+                grid-template-columns: 1fr;
+            }
+            .affiliate-row {
+                grid-template-columns: 1fr 1fr;
+            }
+            .affiliate-row .affiliate-name,
+            .affiliate-row .affiliate-code {
+                grid-column: 1 / -1;
+            }
+        }
+
+</style>
 </head>
 <body>
 
@@ -1006,6 +1123,9 @@
                 <div class="credits-badge" id="creditsBadge" onclick="abrirModalPlanos()">
                     <i class="fa-solid fa-coins"></i> Saldo: <span id="userCreditsCount">0</span> pesquisas
                 </div>
+                <button class="admin-affiliate-btn" id="adminAffiliateBtn" onclick="abrirPainelAfiliados()">
+                    <i class="fa-solid fa-user-group"></i> Afiliados
+                </button>
                 
                 <div id="googleLoginWrapper">
                     <div id="g_id_onload"
@@ -1203,6 +1323,44 @@
         </div>
     </div>
 
+
+    <!-- Painel administrativo de afiliados -->
+    <div class="modal" id="modalAfiliadosAdmin">
+        <div class="modal-content-crop affiliate-admin-panel">
+            <button class="modal-close-x" onclick="fecharPainelAfiliados()">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <h3 style="margin:0 0 6px 0; font-size:1.35rem;">
+                <i class="fa-solid fa-user-group" style="color:var(--gold);"></i>
+                Afiliados
+            </h3>
+
+            <p class="affiliate-admin-note" style="margin-top:0;">
+                Crie links rastreáveis e escolha 10% ou 15% de comissão.
+                A alteração vale para novas vendas; comissões já registradas preservam o percentual original.
+            </p>
+
+            <div class="affiliate-admin-grid">
+                <input class="affiliate-admin-input" id="novoAfiliadoNome" placeholder="Nome do afiliado">
+                <input class="affiliate-admin-input" id="novoAfiliadoCodigo" placeholder="Código do link (ex.: joao)">
+                <select class="affiliate-admin-select" id="novoAfiliadoPercentual">
+                    <option value="10">10%</option>
+                    <option value="15">15%</option>
+                </select>
+            </div>
+
+            <button class="affiliate-create-btn" onclick="criarAfiliadoAdmin()">
+                <i class="fa-solid fa-plus"></i> Criar afiliado
+            </button>
+
+            <div style="height:1px;background:rgba(255,255,255,.08);margin:20px 0;"></div>
+
+            <div id="affiliateAdminStatus" class="affiliate-admin-note">Carregando afiliados...</div>
+            <div class="affiliate-list" id="affiliateAdminList" style="margin-top:12px;"></div>
+        </div>
+    </div>
+
     <!-- Modal do PIX -->
     <div class="modal" id="modalPix">
         <div class="modal-content-crop" style="max-width: 400px;">
@@ -1247,6 +1405,11 @@
         let saldoCreditos = 0;
         let usuarioEmail = null;
         let googleCredentialToken = null;
+        let usuarioEhAdmin = false;
+
+        const AFILIADO_STORAGE_KEY = 'radar_facial_afiliado';
+        const AFILIADO_EXPIRA_KEY = 'radar_facial_afiliado_expira';
+        const AFILIADO_JANELA_MS = 30 * 24 * 60 * 60 * 1000;
 
         let isDragging = false;
         let startX, startY;
@@ -1259,6 +1422,7 @@
         window.addEventListener('DOMContentLoaded', () => {
             configurarInteracaoCirculo();
             configurarTeclaEsc();
+            capturarAfiliadoDaUrl();
         });
 
         function voltarParaInicio(e) {
@@ -1354,7 +1518,13 @@
                 const data = await res.json();
                 if (data.success && data.creditos !== undefined) {
                     saldoCreditos = data.creditos;
+                    usuarioEhAdmin = data.isAdmin === true;
                     atualizarInterfaceSaldo();
+
+                    const adminBtn = document.getElementById('adminAffiliateBtn');
+                    if (adminBtn) {
+                        adminBtn.style.display = usuarioEhAdmin ? 'inline-flex' : 'none';
+                    }
                 }
             } catch (e) { console.error("Erro ao sincronizar user:", e); }
         }
@@ -2149,6 +2319,262 @@
 
         setTimeout(showSocialProof, 4000);
         setInterval(showSocialProof, 16000);
+
+        /* =========================================================
+           AFILIADOS - ATRIBUIÇÃO DE 30 DIAS
+        ========================================================= */
+
+        function normalizarCodigoAfiliadoFront(valor) {
+            return String(valor || '')
+                .toLowerCase()
+                .trim()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9_-]/g, '')
+                .slice(0, 40);
+        }
+
+        async function capturarAfiliadoDaUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const codigo = normalizarCodigoAfiliadoFront(params.get('ref'));
+
+            if (!codigo) return;
+
+            try {
+                const res = await fetch(`/api/afiliados/validar/${encodeURIComponent(codigo)}`);
+                const data = await res.json();
+
+                if (res.ok && data.success && data.valido) {
+                    localStorage.setItem(AFILIADO_STORAGE_KEY, codigo);
+                    localStorage.setItem(
+                        AFILIADO_EXPIRA_KEY,
+                        String(Date.now() + AFILIADO_JANELA_MS)
+                    );
+                }
+            } catch (e) {
+                console.error('Não foi possível validar o afiliado:', e);
+            }
+        }
+
+        function obterAfiliadoAtivo() {
+            const codigo = normalizarCodigoAfiliadoFront(
+                localStorage.getItem(AFILIADO_STORAGE_KEY)
+            );
+            const expira = Number(localStorage.getItem(AFILIADO_EXPIRA_KEY) || 0);
+
+            if (!codigo || !expira || Date.now() > expira) {
+                localStorage.removeItem(AFILIADO_STORAGE_KEY);
+                localStorage.removeItem(AFILIADO_EXPIRA_KEY);
+                return null;
+            }
+
+            return codigo;
+        }
+
+        /* =========================================================
+           AFILIADOS - ADMIN
+        ========================================================= */
+
+        function abrirPainelAfiliados() {
+            if (!usuarioEhAdmin || !googleCredentialToken) return;
+
+            const modal = document.getElementById('modalAfiliadosAdmin');
+            modal.style.display = 'flex';
+            document.body.classList.add('modal-open');
+            carregarAfiliadosAdmin();
+        }
+
+        function fecharPainelAfiliados() {
+            document.getElementById('modalAfiliadosAdmin').style.display = 'none';
+            document.body.classList.remove('modal-open');
+        }
+
+        async function carregarAfiliadosAdmin() {
+            const status = document.getElementById('affiliateAdminStatus');
+            const lista = document.getElementById('affiliateAdminList');
+
+            status.innerText = 'Carregando afiliados...';
+            lista.innerHTML = '';
+
+            try {
+                const res = await fetch('/api/admin/afiliados/listar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        credential: googleCredentialToken
+                    })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok || !data.success) {
+                    throw new Error(data.error || 'Erro ao carregar afiliados.');
+                }
+
+                const afiliados = Array.isArray(data.afiliados) ? data.afiliados : [];
+
+                status.innerText = afiliados.length
+                    ? `${afiliados.length} afiliado(s) cadastrado(s).`
+                    : 'Nenhum afiliado cadastrado ainda.';
+
+                afiliados.forEach(afiliado => {
+                    const row = document.createElement('div');
+                    row.className = 'affiliate-row';
+
+                    const nome = document.createElement('div');
+                    nome.className = 'affiliate-name';
+                    nome.innerHTML = `<strong>${escaparHtmlAfiliado(afiliado.nome)}</strong>`;
+
+                    const codigo = document.createElement('div');
+                    codigo.className = 'affiliate-code';
+                    codigo.innerText = `?ref=${afiliado.codigo}`;
+
+                    const percentual = document.createElement('select');
+                    percentual.className = 'affiliate-admin-select';
+                    percentual.id = `perc_${afiliado.codigo}`;
+                    percentual.innerHTML = `
+                        <option value="10" ${Number(afiliado.comissao_percentual) === 10 ? 'selected' : ''}>10%</option>
+                        <option value="15" ${Number(afiliado.comissao_percentual) === 15 ? 'selected' : ''}>15%</option>
+                    `;
+
+                    const statusSelect = document.createElement('select');
+                    statusSelect.className = 'affiliate-admin-select';
+                    statusSelect.id = `status_${afiliado.codigo}`;
+                    statusSelect.innerHTML = `
+                        <option value="ativo" ${afiliado.status === 'ativo' ? 'selected' : ''}>Ativo</option>
+                        <option value="inativo" ${afiliado.status === 'inativo' ? 'selected' : ''}>Inativo</option>
+                    `;
+
+                    const acoes = document.createElement('div');
+                    acoes.style.display = 'flex';
+                    acoes.style.gap = '6px';
+
+                    const copiar = document.createElement('button');
+                    copiar.className = 'affiliate-copy-btn';
+                    copiar.innerHTML = '<i class="fa-solid fa-copy"></i>';
+                    copiar.title = 'Copiar link';
+                    copiar.onclick = () => copiarLinkAfiliado(afiliado.codigo);
+
+                    const salvar = document.createElement('button');
+                    salvar.className = 'affiliate-save-btn';
+                    salvar.innerHTML = '<i class="fa-solid fa-floppy-disk"></i>';
+                    salvar.title = 'Salvar';
+                    salvar.onclick = () => atualizarAfiliadoAdmin(afiliado.codigo);
+
+                    acoes.appendChild(copiar);
+                    acoes.appendChild(salvar);
+
+                    row.appendChild(nome);
+                    row.appendChild(codigo);
+                    row.appendChild(percentual);
+                    row.appendChild(statusSelect);
+                    row.appendChild(acoes);
+
+                    lista.appendChild(row);
+                });
+            } catch (e) {
+                status.innerText = e.message;
+            }
+        }
+
+        async function criarAfiliadoAdmin() {
+            const nome = document.getElementById('novoAfiliadoNome').value.trim();
+            const codigo = normalizarCodigoAfiliadoFront(
+                document.getElementById('novoAfiliadoCodigo').value
+            );
+            const percentual = Number(
+                document.getElementById('novoAfiliadoPercentual').value
+            );
+
+            if (!nome || !codigo) {
+                alert('Preencha o nome e o código do afiliado.');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/admin/afiliados/criar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        credential: googleCredentialToken,
+                        nome,
+                        codigo,
+                        percentual
+                    })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok || !data.success) {
+                    throw new Error(data.error || 'Erro ao criar afiliado.');
+                }
+
+                document.getElementById('novoAfiliadoNome').value = '';
+                document.getElementById('novoAfiliadoCodigo').value = '';
+                document.getElementById('novoAfiliadoPercentual').value = '10';
+
+                await carregarAfiliadosAdmin();
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        async function atualizarAfiliadoAdmin(codigo) {
+            const percentual = Number(
+                document.getElementById(`perc_${codigo}`).value
+            );
+            const status = document.getElementById(`status_${codigo}`).value;
+
+            try {
+                const res = await fetch('/api/admin/afiliados/atualizar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        credential: googleCredentialToken,
+                        codigo,
+                        percentual,
+                        status
+                    })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok || !data.success) {
+                    throw new Error(data.error || 'Erro ao atualizar afiliado.');
+                }
+
+                await carregarAfiliadosAdmin();
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        async function copiarLinkAfiliado(codigo) {
+            const link = `${window.location.origin}/?ref=${encodeURIComponent(codigo)}`;
+
+            try {
+                await navigator.clipboard.writeText(link);
+            } catch (e) {
+                const temp = document.createElement('textarea');
+                temp.value = link;
+                document.body.appendChild(temp);
+                temp.select();
+                document.execCommand('copy');
+                temp.remove();
+            }
+
+            alert('Link do afiliado copiado.');
+        }
+
+        function escaparHtmlAfiliado(valor) {
+            return String(valor ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
     </script>
 </body>
 </html>
