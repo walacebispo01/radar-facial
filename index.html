@@ -1016,7 +1016,7 @@
 
         .affiliate-admin-grid {
             display: grid;
-            grid-template-columns: 1.2fr 1fr auto;
+            grid-template-columns: minmax(0, 1fr) 110px;
             gap: 10px;
             margin: 18px 0;
         }
@@ -1391,7 +1391,6 @@
 
             <div class="affiliate-admin-grid">
                 <input class="affiliate-admin-input" id="novoAfiliadoNome" placeholder="Nome do afiliado">
-                <input class="affiliate-admin-input" id="novoAfiliadoCodigo" placeholder="Código do link (ex.: joao)">
                 <select class="affiliate-admin-select" id="novoAfiliadoPercentual">
                     <option value="10">10%</option>
                     <option value="15">15%</option>
@@ -2527,15 +2526,12 @@
 
         async function criarAfiliadoAdmin() {
             const nome = document.getElementById('novoAfiliadoNome').value.trim();
-            const codigo = normalizarCodigoAfiliadoFront(
-                document.getElementById('novoAfiliadoCodigo').value
-            );
             const percentual = Number(
                 document.getElementById('novoAfiliadoPercentual').value
             );
 
-            if (!nome || !codigo) {
-                alert('Preencha o nome e o código do afiliado.');
+            if (!nome) {
+                alert('Preencha o nome do afiliado.');
                 return;
             }
 
@@ -2546,7 +2542,6 @@
                     body: JSON.stringify({
                         credential: googleCredentialToken,
                         nome,
-                        codigo,
                         percentual
                     })
                 });
@@ -2558,10 +2553,10 @@
                 }
 
                 document.getElementById('novoAfiliadoNome').value = '';
-                document.getElementById('novoAfiliadoCodigo').value = '';
                 document.getElementById('novoAfiliadoPercentual').value = '10';
 
                 await carregarAfiliadosAdmin();
+                await copiarLinkAfiliado(data.afiliado.codigo);
             } catch (e) {
                 alert(e.message);
             }

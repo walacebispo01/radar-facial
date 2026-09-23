@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
@@ -292,6 +293,16 @@ function gerarIdAfiliado() {
     return `af_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function gerarCodigoAfiliadoUnico() {
+    let codigo;
+
+    do {
+        codigo = `af_${crypto.randomBytes(6).toString('hex')}`;
+    } while (afiliados[codigo]);
+
+    return codigo;
+}
+
 function gerarIdComissao(paymentId) {
     return `com_${String(paymentId)}`;
 }
@@ -377,13 +388,13 @@ app.post('/api/admin/afiliados/criar', async (req, res) => {
         }
 
         const nome = String(req.body?.nome || '').trim().slice(0, 100);
-        const codigo = normalizarCodigoAfiliado(req.body?.codigo);
+        const codigo = gerarCodigoAfiliadoUnico();
         const percentual = Number(req.body?.percentual);
 
-        if (!nome || !codigo) {
+        if (!nome) {
             return res.status(400).json({
                 success: false,
-                error: 'Nome e código do afiliado são obrigatórios.'
+                error: 'Nome do afiliado é obrigatório.'
             });
         }
 
@@ -391,13 +402,6 @@ app.post('/api/admin/afiliados/criar', async (req, res) => {
             return res.status(400).json({
                 success: false,
                 error: 'A comissão deve ser 10% ou 15%.'
-            });
-        }
-
-        if (afiliados[codigo]) {
-            return res.status(409).json({
-                success: false,
-                error: 'Este código de afiliado já existe.'
             });
         }
 
