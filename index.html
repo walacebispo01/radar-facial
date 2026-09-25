@@ -21,6 +21,12 @@
 
         * { box-sizing: border-box; }
 
+        html {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+
         body {
             margin: 0;
             padding: 0;
@@ -374,6 +380,46 @@
             z-index: 25;
             box-shadow: 0 5px 15px rgba(0,0,0,0.6);
             backdrop-filter: blur(8px);
+        }
+
+        .photo-edit-controls {
+            position: absolute;
+            left: 50%;
+            bottom: 0;
+            transform: translateX(-50%);
+            z-index: 30;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            padding: 6px;
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            border-radius: 100px;
+            background: rgba(15, 23, 42, 0.94);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+        }
+
+        .photo-edit-controls.visible { display: flex; }
+
+        .photo-edit-control {
+            width: 40px;
+            height: 40px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.06);
+            color: #fff;
+            font-size: 1rem;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        .photo-edit-control:hover,
+        .photo-edit-control:focus-visible {
+            color: var(--gold);
+            border-color: var(--gold);
+            outline: none;
         }
 
         .scanner-laser {
@@ -1105,6 +1151,35 @@
         .user-drawer-action.logout { margin-top: 10px; color: #fca5a5; }
         .user-drawer-action.logout i { color: #f87171; }
 
+        .native-photo-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 22px 0 10px;
+        }
+
+        .native-photo-action {
+            min-height: 112px;
+            padding: 16px 12px;
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            border-radius: 18px;
+            background: rgba(245, 158, 11, 0.08);
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font: inherit;
+            font-size: 0.82rem;
+            font-weight: 800;
+        }
+
+        .native-photo-action i { color: var(--gold); font-size: 1.7rem; }
+        .native-photo-action:hover,
+        .native-photo-action:focus-visible { border-color: var(--gold); outline: none; }
+
         .social-proof-toast {
             position: fixed;
             bottom: 24px; left: 24px;
@@ -1163,6 +1238,10 @@
             .result-card-square.featured .btn-unlock-square { width: 100%; margin-top: 12px; }
             .scan-brand-header { top: 275px; }
             .user-drawer { width: min(360px, 94vw); padding: 20px; }
+            .native-photo-actions { grid-template-columns: 1fr; }
+            .native-photo-action { min-height: 86px; flex-direction: row; font-size: 0.9rem; }
+            .photo-edit-controls { bottom: -4px; }
+            .zoom-hint { bottom: -52px; font-size: 0.7rem; padding: 6px 10px; }
             .interactive-preview-container,
             .interactive-preview-container img {
                 touch-action: none !important;
@@ -1446,6 +1525,7 @@
                 </div>
 
                 <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="carregarFotoDireta(event)">
+                <input type="file" id="cameraInput" accept="image/*" capture="user" style="display: none;" onchange="carregarFotoDireta(event)">
 
                 <div class="upload-center" id="uploadBtn" onclick="abrirOpcoesFoto(event)" onkeydown="if(event.key === 'Enter' || event.key === ' ') abrirOpcoesFoto(event)" role="button" tabindex="0" aria-label="Escolher ou tirar uma foto">
                     <div class="scanner-laser" id="scannerLaser"></div>
@@ -1477,6 +1557,17 @@
                     </div>
                 </div>
 
+                <div class="photo-edit-controls" id="photoEditControls" aria-label="Controles de enquadramento da foto">
+                    <button class="photo-edit-control" type="button" onclick="ajustarZoomFoto(-1, event)" aria-label="Diminuir zoom">
+                        <i class="fa-solid fa-minus"></i>
+                    </button>
+                    <button class="photo-edit-control" type="button" onclick="centralizarFoto(event)" aria-label="Centralizar foto">
+                        <i class="fa-solid fa-crosshairs"></i>
+                    </button>
+                    <button class="photo-edit-control" type="button" onclick="ajustarZoomFoto(1, event)" aria-label="Aumentar zoom">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                </div>
                 <div class="zoom-hint" id="zoomHint">Posicione o rosto • Arraste para mover • Use 2 dedos para zoom</div>
             </div>
 
@@ -1547,6 +1638,28 @@
             </button>
         </div>
     </aside>
+
+    <div class="modal" id="modalFotoNativa" role="dialog" aria-modal="true" aria-labelledby="tituloFotoNativa">
+        <div class="modal-content-crop" style="max-width: 420px;">
+            <button class="modal-close-x" type="button" onclick="fecharOpcoesFoto()" aria-label="Fechar opções de foto">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="logo-icon" style="margin: 0 auto 14px; width: 56px; height: 56px; font-size: 1.4rem;">
+                <i class="fa-solid fa-camera"></i>
+            </div>
+            <h3 id="tituloFotoNativa" style="margin: 0; font-size: 1.35rem;">Adicionar foto</h3>
+            <p style="margin: 7px 0 0; color: var(--text-dim); font-size: 0.82rem;">Use a câmera nativa do celular ou escolha uma imagem da galeria.</p>
+            <div class="native-photo-actions">
+                <button class="native-photo-action" type="button" onclick="abrirCameraNativa()">
+                    <i class="fa-solid fa-camera"></i> Câmera do celular
+                </button>
+                <button class="native-photo-action" type="button" onclick="abrirGaleriaNativa()">
+                    <i class="fa-solid fa-images"></i> Galeria de fotos
+                </button>
+            </div>
+            <button class="btn-modal btn-close" type="button" onclick="fecharOpcoesFoto()">Cancelar</button>
+        </div>
+    </div>
 
     <!-- MODAL POP-UP ESTILIZADO: Solicitar Login Google -->
     <div class="modal" id="modalLoginObrigatorio">
@@ -1719,6 +1832,7 @@
         let startX, startY;
         let imgX = 0, imgY = 0;
         let currentScale = 1;
+        let minimumScale = 0.1;
         let touchDragging = false;
         let touchStartX = 0, touchStartY = 0;
         let pinchStartDistance = 0, pinchStartScale = 1;
@@ -1749,8 +1863,10 @@
                     const modalLogin = document.getElementById('modalLoginObrigatorio');
                     const modalPlanos = document.getElementById('modalPlanos');
                     const modalPix = document.getElementById('modalPix');
+                    const modalFotoNativa = document.getElementById('modalFotoNativa');
 
                     if (document.body.classList.contains('drawer-open')) { fecharMenuUsuario(); return; }
+                    if (modalFotoNativa.style.display === 'flex') { fecharOpcoesFoto(); return; }
                     if (modalPix.style.display === 'flex') { voltarParaPlanos(); return; }
                     if (modalPlanos.style.display === 'flex') { fecharModalPlanos(); return; }
                     if (modalLogin.style.display === 'flex') { fecharModalLogin(); return; }
@@ -1766,9 +1882,11 @@
             document.body.classList.remove('focus-mode');
             document.getElementById('zoomHint').style.display = 'none';
             document.getElementById('interactiveContainer').style.display = 'none';
+            document.getElementById('photoEditControls').classList.remove('visible');
             document.getElementById('uploadPlaceholder').style.display = 'flex';
             document.getElementById('draggableThumb').src = '';
             document.getElementById('imageInput').value = '';
+            document.getElementById('cameraInput').value = '';
             document.getElementById('scanBtn').style.display = 'inline-flex';
         }
 
@@ -1864,11 +1982,30 @@
                 event.stopPropagation();
                 event.preventDefault();
             }
+            if (event?.target?.closest('#interactiveContainer, #photoEditControls')) return;
             if (!usuarioEmail) {
                 abrirModalLogin();
                 return;
             }
 
+            document.getElementById('modalFotoNativa').style.display = 'flex';
+            document.body.classList.add('modal-open');
+        }
+
+        function fecharOpcoesFoto() {
+            document.getElementById('modalFotoNativa').style.display = 'none';
+            document.body.classList.remove('modal-open');
+        }
+
+        function abrirCameraNativa() {
+            fecharOpcoesFoto();
+            const cameraInput = document.getElementById('cameraInput');
+            cameraInput.value = '';
+            cameraInput.click();
+        }
+
+        function abrirGaleriaNativa() {
+            fecharOpcoesFoto();
             const fileInput = document.getElementById('imageInput');
             fileInput.value = '';
             fileInput.click();
@@ -1877,6 +2014,11 @@
         function carregarFotoDireta(event) {
             const file = event.target.files[0];
             if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                alert('Escolha um arquivo de imagem válido.');
+                event.target.value = '';
+                return;
+            }
 
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -1890,19 +2032,23 @@
             thumb.src = imageDataUrl;
 
             thumb.onload = () => {
-                    const containerSize = 220; 
+                    const containerSize = window.matchMedia('(max-width: 600px)').matches
+                        ? Math.min(210, window.innerWidth * 0.64)
+                        : 220;
                     const imgW = thumb.naturalWidth;
                     const imgH = thumb.naturalHeight;
                     
                     const scaleX = containerSize / imgW;
                     const scaleY = containerSize / imgH;
-                    currentScale = Math.max(scaleX, scaleY);
+                    minimumScale = Math.max(scaleX, scaleY);
+                    currentScale = minimumScale;
 
                     imgX = 0; imgY = 0;
                     atualizarTransformacaoImagem();
                     
                     document.getElementById('interactiveContainer').style.display = 'block';
                     document.getElementById('zoomHint').style.display = 'block';
+                    document.getElementById('photoEditControls').classList.add('visible');
                     document.getElementById('uploadPlaceholder').style.display = 'none';
 
                     document.body.classList.add('focus-mode');
@@ -1930,8 +2076,8 @@
 
             container.addEventListener('wheel', (e) => {
                 e.preventDefault();
-                currentScale += e.deltaY < 0 ? 0.15 : -0.15;
-                currentScale = Math.max(0.1, Math.min(5, currentScale));
+                currentScale *= e.deltaY < 0 ? 1.12 : (1 / 1.12);
+                currentScale = Math.max(minimumScale, Math.min(minimumScale * 6, currentScale));
                 atualizarTransformacaoImagem();
             }, { passive: false });
 
@@ -1966,7 +2112,7 @@
                         pinchStartDistance = d;
                         pinchStartScale = currentScale;
                     }
-                    currentScale = Math.max(0.1, Math.min(5, pinchStartScale * (d / pinchStartDistance)));
+                    currentScale = Math.max(minimumScale, Math.min(minimumScale * 6, pinchStartScale * (d / pinchStartDistance)));
                     atualizarTransformacaoImagem();
                 }
                 e.preventDefault();
@@ -1997,6 +2143,21 @@
             thumb.style.transform = `translate(calc(-50% + ${imgX}px), calc(-50% + ${imgY}px)) scale(${currentScale})`;
         }
 
+        function ajustarZoomFoto(direcao, event) {
+            event?.stopPropagation();
+            const fator = direcao > 0 ? 1.2 : (1 / 1.2);
+            currentScale = Math.max(minimumScale, Math.min(minimumScale * 6, currentScale * fator));
+            atualizarTransformacaoImagem();
+        }
+
+        function centralizarFoto(event) {
+            event?.stopPropagation();
+            imgX = 0;
+            imgY = 0;
+            currentScale = minimumScale;
+            atualizarTransformacaoImagem();
+        }
+
         function capturarImagemFinalCirculo() {
             const thumb = document.getElementById('draggableThumb');
             if (!thumb.src || thumb.src === window.location.href) return null;
@@ -2011,11 +2172,14 @@
             ctx.arc(200, 200, 200, 0, Math.PI * 2, true);
             ctx.clip();
 
-            const img = new Image();
-            img.crossOrigin = "anonymous";
-            img.src = thumb.src;
+            const containerSize = document.getElementById('interactiveContainer').clientWidth || 220;
+            const outputRatio = 400 / containerSize;
+            const drawWidth = thumb.naturalWidth * currentScale * outputRatio;
+            const drawHeight = thumb.naturalHeight * currentScale * outputRatio;
+            const drawX = 200 + (imgX * outputRatio) - (drawWidth / 2);
+            const drawY = 200 + (imgY * outputRatio) - (drawHeight / 2);
 
-            ctx.drawImage(img, 0, 0, 400, 400);
+            ctx.drawImage(thumb, drawX, drawY, drawWidth, drawHeight);
             ctx.restore();
 
             return canvas.toDataURL('image/jpeg', 0.9);
