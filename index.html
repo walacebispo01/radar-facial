@@ -167,6 +167,22 @@
             border-radius: 100px;
             font-size: 0.85rem;
             color: #fff;
+            cursor: pointer;
+            font: inherit;
+            min-width: 0;
+            max-width: 270px;
+        }
+
+        .user-profile-badge:hover,
+        .user-profile-badge:focus-visible {
+            border-color: rgba(245, 158, 11, 0.55);
+            outline: none;
+        }
+
+        .user-email-label {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         #googleLoginWrapper iframe {
@@ -793,6 +809,30 @@
             box-shadow: 0 7px 22px color-mix(in srgb, var(--social-color) 48%, transparent) !important;
         }
 
+        .result-avatar-link {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .result-avatar-link:focus-visible {
+            outline: 3px solid var(--social-color);
+            outline-offset: 4px;
+        }
+
+        .social-access-btn {
+            text-decoration: none;
+        }
+
+        .social-access-btn.is-disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            pointer-events: none;
+            filter: grayscale(0.5);
+        }
+
         .plans-grid {
             display: flex;
             flex-direction: column;
@@ -961,79 +1001,109 @@
         .btn-close { background: rgba(255,255,255,0.05); color: var(--text-dim); }
         .btn-close:hover { background: rgba(255,255,255,0.1); color: #fff; }
 
-        .photo-source-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin: 22px 0 10px;
+        body.drawer-open { overflow: hidden; }
+
+        .user-drawer-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 2100;
+            background: rgba(3, 7, 18, 0.72);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.25s ease, visibility 0.25s ease;
         }
 
-        .photo-source-btn {
-            min-height: 126px;
-            padding: 18px 12px;
-            border: 1px solid rgba(245, 158, 11, 0.35);
-            border-radius: 18px;
-            background: rgba(245, 158, 11, 0.08);
+        .user-drawer {
+            position: fixed;
+            top: 0;
+            right: 0;
+            z-index: 2200;
+            width: min(380px, 92vw);
+            height: 100dvh;
+            padding: 24px;
+            background: #0b1220;
+            border-left: 1px solid rgba(245, 158, 11, 0.28);
+            box-shadow: -18px 0 55px rgba(0, 0, 0, 0.55);
+            transform: translateX(105%);
+            visibility: hidden;
+            transition: transform 0.28s ease, visibility 0.28s ease;
+            overflow-y: auto;
+        }
+
+        body.drawer-open .user-drawer-backdrop {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        body.drawer-open .user-drawer { transform: translateX(0); visibility: visible; }
+
+        .user-drawer-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: flex-start;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .user-drawer-title { margin: 0 0 6px; font-size: 1.15rem; }
+
+        .user-drawer-email {
+            color: var(--text-dim);
+            font-size: 0.82rem;
+            overflow-wrap: anywhere;
+        }
+
+        .user-drawer-close {
+            width: 40px;
+            height: 40px;
+            flex: 0 0 40px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.05);
             color: #fff;
             cursor: pointer;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            font: inherit;
-            font-size: 0.82rem;
-            font-weight: 800;
-            transition: transform 0.2s, border-color 0.2s, background 0.2s;
         }
 
-        .photo-source-btn:hover,
-        .photo-source-btn:focus-visible {
-            transform: translateY(-2px);
-            border-color: var(--gold);
-            background: rgba(245, 158, 11, 0.16);
+        .user-drawer-balance {
+            margin: 20px 0;
+            padding: 18px;
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            border-radius: 18px;
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .user-drawer-balance small { color: var(--text-dim); }
+        .user-drawer-balance strong { display: block; margin-top: 6px; color: #34d399; font-size: 1.35rem; }
+
+        .user-drawer-actions { display: grid; gap: 10px; }
+
+        .user-drawer-action {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.04);
+            color: #fff;
+            font: inherit;
+            font-weight: 750;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .user-drawer-action:hover,
+        .user-drawer-action:focus-visible {
+            border-color: rgba(245, 158, 11, 0.5);
+            background: rgba(245, 158, 11, 0.09);
             outline: none;
         }
 
-        .photo-source-btn i { color: var(--gold); font-size: 1.8rem; }
-
-        .camera-frame {
-            position: relative;
-            width: 100%;
-            aspect-ratio: 3 / 4;
-            max-height: 58vh;
-            margin: 18px 0 10px;
-            overflow: hidden;
-            border: 1px solid rgba(245, 158, 11, 0.45);
-            border-radius: 22px;
-            background: #020617;
-        }
-
-        .camera-preview {
-            display: block;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transform: scaleX(-1);
-        }
-
-        .camera-preview.environment-camera { transform: none; }
-
-        .camera-status {
-            min-height: 20px;
-            margin: 6px 0;
-            color: var(--text-dim);
-            font-size: 0.78rem;
-            line-height: 1.4;
-        }
-
-        .camera-status.error { color: #fca5a5; }
-
-        .camera-actions {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
+        .user-drawer-action i { width: 20px; color: var(--gold); text-align: center; }
+        .user-drawer-action.logout { margin-top: 10px; color: #fca5a5; }
+        .user-drawer-action.logout i { color: #f87171; }
 
         .social-proof-toast {
             position: fixed;
@@ -1058,11 +1128,41 @@
         .social-proof-text strong { color: #fff; display: block; font-weight: 700; }
         .social-proof-text span { color: var(--text-dim); font-size: 0.75rem; }
     
-        /* Mobile: impede o navegador de capturar o gesto de zoom da foto */
+        /* Mobile */
         @media (max-width: 600px) {
+            header {
+                padding: 12px 14px;
+                gap: 8px;
+            }
+
+            .logo { gap: 8px; font-size: 1.12rem; min-width: 0; }
+            .logo-icon { width: 38px; height: 38px; border-radius: 10px; font-size: 1.05rem; flex: 0 0 38px; }
+            .header-right { gap: 7px; min-width: 0; }
+            .admin-affiliate-btn { display: none !important; }
+            .credits-badge { padding: 8px 10px; font-size: 0.76rem; gap: 5px; white-space: nowrap; }
+            .credits-badge-label { display: none; }
+            .user-profile-badge { width: 40px; height: 40px; padding: 0; justify-content: center; flex: 0 0 40px; }
+            .user-email-label { display: none; }
+            #googleLoginWrapper { max-width: 170px; overflow: hidden; }
+            #googleLoginWrapper > div { transform-origin: right center; }
+
+            .hero { width: 100%; margin-top: 24px; padding: 0 14px; }
+            .hero h1 { font-size: clamp(2rem, 10vw, 2.55rem); letter-spacing: -1px; }
+            .hero p { font-size: 0.96rem; }
+            .orbit-container { width: min(320px, calc(100vw - 28px)); height: min(320px, calc(100vw - 28px)); }
+            body.focus-mode .orbit-container { width: min(330px, calc(100vw - 20px)); height: min(330px, calc(100vw - 20px)); transform: scale(1); }
+            body.focus-mode .upload-center { width: min(210px, 64vw) !important; height: min(210px, 64vw) !important; }
+            .stats-container { width: 100%; gap: 12px; padding: 0 14px; }
+            .stat-card { flex: 1; min-width: 0; }
+            .stat-card .val { font-size: 1.18rem; }
+            .stat-card .lbl { font-size: 0.62rem; }
+            .results-grid { grid-template-columns: 1fr; }
+            .result-card-square.featured { grid-column: auto; flex-direction: column; text-align: center; padding: 16px; }
+            .result-card-square.featured .avatar-match-wrapper { margin: 0 0 10px; }
+            .result-card-square.featured .result-text-details { align-items: center; }
+            .result-card-square.featured .btn-unlock-square { width: 100%; margin-top: 12px; }
             .scan-brand-header { top: 275px; }
-            .photo-source-grid { grid-template-columns: 1fr; }
-            .photo-source-btn { min-height: 92px; }
+            .user-drawer { width: min(360px, 94vw); padding: 20px; }
             .interactive-preview-container,
             .interactive-preview-container img {
                 touch-action: none !important;
@@ -1070,6 +1170,11 @@
                 user-select: none;
                 -webkit-touch-callout: none;
             }
+        }
+
+        @media (max-width: 380px) {
+            .logo span { display: none; }
+            .credits-badge { padding: 8px; }
         }
 
     
@@ -1286,8 +1391,8 @@
             </a>
             
             <div class="header-right">
-                <div class="credits-badge" id="creditsBadge" onclick="abrirModalPlanos()">
-                    <i class="fa-solid fa-coins"></i> Saldo: <span id="userCreditsCount">0</span> pesquisas
+                <div class="credits-badge" id="creditsBadge" onclick="abrirModalPlanos()" role="button" tabindex="0" onkeydown="if(event.key === 'Enter' || event.key === ' ') abrirModalPlanos()">
+                    <i class="fa-solid fa-coins"></i> <span class="credits-badge-label">Saldo:</span> <span id="userCreditsCount">0</span> <span class="credits-badge-label">pesquisas</span>
                 </div>
                 <button class="admin-affiliate-btn" id="adminAffiliateBtn" onclick="abrirPainelAfiliados()">
                     <i class="fa-solid fa-user-group"></i> Afiliados
@@ -1307,9 +1412,9 @@
                          data-size="large">
                     </div>
                 </div>
-                <div id="userProfileBadge" class="user-profile-badge" style="display: none; cursor: pointer;" onclick="sairDaConta()" title="Sair da conta">
-                    <i class="fa-solid fa-user-check" style="color: var(--gold);"></i> <span id="userEmailDisplay">conta@email.com</span>
-                </div>
+                <button id="userProfileBadge" class="user-profile-badge" type="button" style="display: none;" onclick="abrirMenuUsuario()" title="Abrir menu da conta" aria-controls="userDrawer" aria-expanded="false">
+                    <i class="fa-solid fa-user-check" style="color: var(--gold);"></i> <span id="userEmailDisplay" class="user-email-label">conta@email.com</span>
+                </button>
             </div>
         </header>
 
@@ -1415,53 +1520,33 @@
         </div>
     </div>
 
-    <!-- Escolha da origem e captura da foto -->
-    <div class="modal" id="modalFoto" role="dialog" aria-modal="true" aria-labelledby="tituloModalFoto">
-        <div class="modal-content-crop" style="max-width: 440px;">
-            <button class="modal-close-x" type="button" onclick="fecharModalFoto()" aria-label="Fechar opções de foto">
+    <div class="user-drawer-backdrop" id="userDrawerBackdrop" onclick="fecharMenuUsuario()" aria-hidden="true"></div>
+    <aside class="user-drawer" id="userDrawer" role="dialog" aria-modal="true" aria-labelledby="userDrawerTitle" aria-hidden="true">
+        <div class="user-drawer-header">
+            <div>
+                <h2 class="user-drawer-title" id="userDrawerTitle">Minha conta</h2>
+                <div class="user-drawer-email" id="userDrawerEmail">conta@email.com</div>
+            </div>
+            <button class="user-drawer-close" id="userDrawerClose" type="button" onclick="fecharMenuUsuario()" aria-label="Fechar menu da conta">
                 <i class="fa-solid fa-xmark"></i>
             </button>
-
-            <div id="photoSourcePanel">
-                <div class="logo-icon" style="margin: 0 auto 14px; width: 56px; height: 56px; font-size: 1.4rem;">
-                    <i class="fa-solid fa-camera"></i>
-                </div>
-                <h3 id="tituloModalFoto" style="margin: 0; font-size: 1.35rem;">Adicionar foto</h3>
-                <p style="margin: 7px 0 0; color: var(--text-dim); font-size: 0.82rem;">Escolha uma imagem do aparelho ou use a câmera agora.</p>
-
-                <div class="photo-source-grid">
-                    <button class="photo-source-btn" type="button" onclick="escolherFotoArquivo()">
-                        <i class="fa-solid fa-image"></i>
-                        Carregar foto
-                    </button>
-                    <button class="photo-source-btn" type="button" onclick="abrirCamera()">
-                        <i class="fa-solid fa-camera-retro"></i>
-                        Tirar foto agora
-                    </button>
-                </div>
-                <button class="btn-modal btn-close" type="button" onclick="fecharModalFoto()">Cancelar</button>
-            </div>
-
-            <div id="cameraPanel" style="display: none;">
-                <h3 style="margin: 0; font-size: 1.35rem;">Posicione o rosto</h3>
-                <p id="cameraStatus" class="camera-status" aria-live="polite">Solicitando acesso à câmera...</p>
-                <div class="camera-frame">
-                    <video id="cameraPreview" class="camera-preview" autoplay playsinline muted aria-label="Prévia ao vivo da câmera"></video>
-                </div>
-                <div class="camera-actions">
-                    <button class="btn-modal btn-close" type="button" onclick="voltarParaOpcoesFoto()">
-                        <i class="fa-solid fa-arrow-left"></i> Voltar
-                    </button>
-                    <button class="btn-modal btn-close" type="button" onclick="trocarCamera()">
-                        <i class="fa-solid fa-camera-rotate"></i> Trocar câmera
-                    </button>
-                </div>
-                <button class="btn-modal btn-pay" id="capturePhotoBtn" type="button" onclick="capturarFotoCamera()" disabled>
-                    <i class="fa-solid fa-camera"></i> Capturar foto
-                </button>
-            </div>
         </div>
-    </div>
+        <div class="user-drawer-balance">
+            <small>Saldo disponível</small>
+            <strong><span id="userDrawerCreditsCount">0</span> pesquisas</strong>
+        </div>
+        <div class="user-drawer-actions">
+            <button class="user-drawer-action" type="button" onclick="abrirPlanosPeloMenu()">
+                <i class="fa-solid fa-cart-shopping"></i> Comprar pesquisas
+            </button>
+            <button class="user-drawer-action" id="drawerAdminAffiliateBtn" type="button" style="display: none;" onclick="abrirAfiliadosPeloMenu()">
+                <i class="fa-solid fa-user-group"></i> Painel de afiliados
+            </button>
+            <button class="user-drawer-action logout" type="button" onclick="sairDaConta()">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i> Sair da conta
+            </button>
+        </div>
+    </aside>
 
     <!-- MODAL POP-UP ESTILIZADO: Solicitar Login Google -->
     <div class="modal" id="modalLoginObrigatorio">
@@ -1637,19 +1722,11 @@
         let touchDragging = false;
         let touchStartX = 0, touchStartY = 0;
         let pinchStartDistance = 0, pinchStartScale = 1;
-        let cameraStream = null;
-        let cameraFacingMode = 'user';
-        let cameraRequestId = 0;
-
         window.addEventListener('DOMContentLoaded', () => {
             configurarInteracaoCirculo();
             configurarTeclaEsc();
             capturarAfiliadoDaUrl();
             authClient.restore().catch(error => console.error('Erro ao restaurar sessão:', error));
-            window.addEventListener('pagehide', pararCamera);
-            document.addEventListener('visibilitychange', () => {
-                if (document.hidden && cameraStream) fecharModalFoto();
-            });
         });
 
         function voltarParaInicio(e) {
@@ -1669,12 +1746,11 @@
         function configurarTeclaEsc() {
             window.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
-                    const modalFoto = document.getElementById('modalFoto');
                     const modalLogin = document.getElementById('modalLoginObrigatorio');
                     const modalPlanos = document.getElementById('modalPlanos');
                     const modalPix = document.getElementById('modalPix');
 
-                    if (modalFoto.style.display === 'flex') { fecharModalFoto(); return; }
+                    if (document.body.classList.contains('drawer-open')) { fecharMenuUsuario(); return; }
                     if (modalPix.style.display === 'flex') { voltarParaPlanos(); return; }
                     if (modalPlanos.style.display === 'flex') { fecharModalPlanos(); return; }
                     if (modalLogin.style.display === 'flex') { fecharModalLogin(); return; }
@@ -1687,7 +1763,6 @@
         }
 
         function cancelarModoFoco() {
-            fecharModalFoto();
             document.body.classList.remove('focus-mode');
             document.getElementById('zoomHint').style.display = 'none';
             document.getElementById('interactiveContainer').style.display = 'none';
@@ -1726,11 +1801,18 @@
             document.getElementById('userProfileBadge').style.display = usuarioEmail ? 'flex' : 'none';
             document.getElementById('creditsBadge').style.display = usuarioEmail ? 'flex' : 'none';
             document.getElementById('adminAffiliateBtn').style.display = usuarioEhAdmin ? 'inline-flex' : 'none';
-            if (usuarioEmail) document.getElementById('userEmailDisplay').innerText = usuarioEmail;
+            document.getElementById('drawerAdminAffiliateBtn').style.display = usuarioEhAdmin ? 'flex' : 'none';
+            if (usuarioEmail) {
+                document.getElementById('userEmailDisplay').innerText = usuarioEmail;
+                document.getElementById('userDrawerEmail').innerText = usuarioEmail;
+            } else {
+                fecharMenuUsuario();
+            }
             atualizarInterfaceSaldo();
         }
 
         async function sairDaConta() {
+            fecharMenuUsuario();
             try {
                 await authClient.logout();
                 if (window.google?.accounts?.id) google.accounts.id.disableAutoSelect();
@@ -1743,7 +1825,38 @@
             document.getElementById('googleLoginWrapper').style.display = 'none';
             document.getElementById('userProfileBadge').style.display = 'flex';
             document.getElementById('userEmailDisplay').innerText = email;
+            document.getElementById('userDrawerEmail').innerText = email;
             document.getElementById('creditsBadge').style.display = 'flex';
+        }
+
+        function abrirMenuUsuario() {
+            if (!usuarioEmail) return;
+            document.body.classList.add('drawer-open');
+            document.getElementById('userDrawer').setAttribute('aria-hidden', 'false');
+            document.getElementById('userDrawerBackdrop').setAttribute('aria-hidden', 'false');
+            document.getElementById('userProfileBadge').setAttribute('aria-expanded', 'true');
+            document.getElementById('userDrawerClose').focus();
+        }
+
+        function fecharMenuUsuario() {
+            const estavaAberto = document.body.classList.contains('drawer-open');
+            document.body.classList.remove('drawer-open');
+            document.getElementById('userDrawer').setAttribute('aria-hidden', 'true');
+            document.getElementById('userDrawerBackdrop').setAttribute('aria-hidden', 'true');
+            document.getElementById('userProfileBadge').setAttribute('aria-expanded', 'false');
+            if (estavaAberto && document.getElementById('userProfileBadge').style.display !== 'none') {
+                document.getElementById('userProfileBadge').focus();
+            }
+        }
+
+        function abrirPlanosPeloMenu() {
+            fecharMenuUsuario();
+            abrirModalPlanos();
+        }
+
+        function abrirAfiliadosPeloMenu() {
+            fecharMenuUsuario();
+            abrirPainelAfiliados();
         }
 
         function abrirOpcoesFoto(event) {
@@ -1756,110 +1869,9 @@
                 return;
             }
 
-            pararCamera();
-            document.getElementById('photoSourcePanel').style.display = 'block';
-            document.getElementById('cameraPanel').style.display = 'none';
-            document.getElementById('modalFoto').style.display = 'flex';
-            document.body.classList.add('modal-open');
-        }
-
-        function fecharModalFoto() {
-            pararCamera();
-            const modal = document.getElementById('modalFoto');
-            if (modal) modal.style.display = 'none';
-            document.body.classList.remove('modal-open');
-        }
-
-        function escolherFotoArquivo() {
-            fecharModalFoto();
             const fileInput = document.getElementById('imageInput');
             fileInput.value = '';
             fileInput.click();
-        }
-
-        function pararCamera() {
-            cameraRequestId += 1;
-            if (cameraStream) {
-                cameraStream.getTracks().forEach(track => track.stop());
-                cameraStream = null;
-            }
-            const video = document.getElementById('cameraPreview');
-            if (video) video.srcObject = null;
-        }
-
-        async function abrirCamera() {
-            const status = document.getElementById('cameraStatus');
-            const captureButton = document.getElementById('capturePhotoBtn');
-            const video = document.getElementById('cameraPreview');
-
-            document.getElementById('photoSourcePanel').style.display = 'none';
-            document.getElementById('cameraPanel').style.display = 'block';
-            status.classList.remove('error');
-            status.textContent = 'Solicitando acesso à câmera...';
-            captureButton.disabled = true;
-            video.classList.toggle('environment-camera', cameraFacingMode === 'environment');
-
-            if (!navigator.mediaDevices?.getUserMedia) {
-                status.classList.add('error');
-                status.textContent = 'A câmera não está disponível neste navegador. Use a opção Carregar foto.';
-                return;
-            }
-
-            pararCamera();
-            const requestId = cameraRequestId;
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: { ideal: cameraFacingMode } },
-                    audio: false
-                });
-
-                if (requestId !== cameraRequestId || document.getElementById('modalFoto').style.display !== 'flex') {
-                    stream.getTracks().forEach(track => track.stop());
-                    return;
-                }
-
-                cameraStream = stream;
-                video.srcObject = stream;
-                await video.play();
-                status.textContent = 'Centralize o rosto e toque em Capturar foto.';
-                captureButton.disabled = false;
-            } catch (error) {
-                console.error('Não foi possível abrir a câmera:', error);
-                pararCamera();
-                status.classList.add('error');
-                status.textContent = 'Não foi possível acessar a câmera. Confira a permissão ou carregue uma foto.';
-            }
-        }
-
-        function voltarParaOpcoesFoto() {
-            pararCamera();
-            document.getElementById('cameraPanel').style.display = 'none';
-            document.getElementById('photoSourcePanel').style.display = 'block';
-        }
-
-        async function trocarCamera() {
-            cameraFacingMode = cameraFacingMode === 'user' ? 'environment' : 'user';
-            await abrirCamera();
-        }
-
-        function capturarFotoCamera() {
-            const video = document.getElementById('cameraPreview');
-            if (!cameraStream || !video.videoWidth || !video.videoHeight) return;
-
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const context = canvas.getContext('2d');
-
-            if (cameraFacingMode === 'user') {
-                context.translate(canvas.width, 0);
-                context.scale(-1, 1);
-            }
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            const foto = canvas.toDataURL('image/jpeg', 0.9);
-            fecharModalFoto();
-            aplicarImagemSelecionada(foto);
         }
 
         function carregarFotoDireta(event) {
@@ -2282,10 +2294,10 @@
         function detectarRedeSocial(url, item = {}) {
             const bruto = [
                 url,
-                item.site,
-                item.domain,
-                item.source,
-                item.title
+                extrairValorString(item.site),
+                extrairValorString(item.domain),
+                extrairValorString(item.source),
+                extrairValorString(item.title)
             ].filter(Boolean).join(' ').toLowerCase();
 
             const redes = [
@@ -2369,7 +2381,7 @@
 
             let dominio = '';
             try {
-                dominio = new URL(url, window.location.origin).hostname.replace(/^www\./, '');
+                dominio = url ? new URL(url).hostname.replace(/^www\./, '') : '';
             } catch (e) {}
 
             return {
@@ -2380,19 +2392,46 @@
             };
         }
 
-        function escaparHtml(valor) {
-            return String(valor ?? '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
+        function extrairValorString(valor) {
+            if (typeof valor === 'string') return valor.trim();
+            if (valor && typeof valor === 'object' && typeof valor.value === 'string') {
+                return valor.value.trim();
+            }
+            return '';
         }
 
-        function escaparAtributoJS(valor) {
-            return String(valor ?? '')
-                .replace(/\\/g, '\\\\')
-                .replace(/'/g, "\\'");
+        function resolverUrlResultado(item) {
+            const candidatos = [item?.url, item?.link, item?.page_url, item?.source_url];
+
+            for (const candidato of candidatos) {
+                const valor = extrairValorString(candidato);
+                if (!valor) continue;
+                try {
+                    const url = new URL(valor);
+                    if (url.protocol === 'http:' || url.protocol === 'https:') return url.href;
+                } catch (e) {}
+            }
+            return '';
+        }
+
+        function resolverImagemResultado(item, fallback) {
+            const candidatos = [item?.image, item?.thumbnail, item?.image_url, item?.base64];
+
+            for (const candidato of candidatos) {
+                const valor = extrairValorString(candidato);
+                if (/^data:image\/(?:png|jpe?g|webp);base64,/i.test(valor)) return valor;
+                try {
+                    const url = new URL(valor);
+                    if (url.protocol === 'http:' || url.protocol === 'https:') return url.href;
+                } catch (e) {}
+            }
+            return fallback;
+        }
+
+        function criarIconeRede(rede) {
+            const icone = document.createElement('i');
+            icone.className = rede.icone;
+            return icone;
         }
 
         function renderizarResultadosReaisAPI(itens) {
@@ -2420,62 +2459,82 @@
                     ? (scoreBruto <= 1 ? scoreBruto * 100 : scoreBruto).toFixed(1)
                     : '--';
 
-                const urlCandidato = item.url || item.link || item.page_url || '#';
-                let urlPerfil = '#';
-
-                try {
-                    const parsedUrl = new URL(urlCandidato, window.location.origin);
-                    if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
-                        urlPerfil = parsedUrl.href;
-                    }
-                } catch (e) {}
-
+                const urlPerfil = resolverUrlResultado(item);
                 const rede = detectarRedeSocial(urlPerfil, item);
 
                 const tituloPerfil =
-                    item.title ||
-                    item.site ||
-                    item.domain ||
-                    item.source ||
+                    extrairValorString(item.title) ||
+                    extrairValorString(item.site) ||
+                    extrairValorString(item.domain) ||
+                    extrairValorString(item.source) ||
                     'Perfil Público Detectado';
 
-                const previewImg =
-                    item.image ||
-                    item.thumbnail ||
-                    item.image_url ||
-                    item.base64 ||
-                    imgOriginalEnviada;
-
+                const previewImg = resolverImagemResultado(item, imgOriginalEnviada);
                 const isFeatured = index === 0;
-                const nomeRedeSeguro = escaparHtml(rede.nome);
-                const tituloSeguro = escaparHtml(tituloPerfil);
-                const previewSeguro = escaparHtml(previewImg);
-                const urlJsSeguro = escaparAtributoJS(urlPerfil);
 
-                const cardHtml = `
-                    <div class="result-card-square social-result-card ${isFeatured ? 'featured' : ''}"
-                         style="--social-color:${rede.cor}; --social-color-2:${rede.cor2};">
-                        <div class="social-gradient-bar"></div>
-                        <div class="avatar-match-wrapper">
-                            <span class="match-badge-tag">${precisao === "--" ? "Match" : precisao + "%"}</span>
-                            <img class="result-avatar-img" src="${previewSeguro}" alt="Perfil">
-                        </div>
-                        <div class="result-text-details">
-                            <div class="network-label-row">
-                                <span class="social-network-icon">
-                                    <i class="${rede.icone}"></i>
-                                </span>
-                                ${nomeRedeSeguro}
-                            </div>
-                            <div class="username-blur-text">${tituloSeguro}</div>
-                        </div>
-                        <button onclick="window.open('${urlJsSeguro}', '_blank', 'noopener,noreferrer')"
-                                class="btn-unlock-square social-access-btn">
-                            <i class="${rede.icone}"></i> ACESSAR ${nomeRedeSeguro.toUpperCase()}
-                        </button>
-                    </div>
-                `;
-                container.innerHTML += cardHtml;
+                const card = document.createElement('div');
+                card.className = `result-card-square social-result-card${isFeatured ? ' featured' : ''}`;
+                card.style.setProperty('--social-color', rede.cor);
+                card.style.setProperty('--social-color-2', rede.cor2);
+
+                const barra = document.createElement('div');
+                barra.className = 'social-gradient-bar';
+                card.appendChild(barra);
+
+                const avatarWrapper = document.createElement('div');
+                avatarWrapper.className = 'avatar-match-wrapper';
+                const match = document.createElement('span');
+                match.className = 'match-badge-tag';
+                match.textContent = precisao === '--' ? 'Match' : `${precisao}%`;
+                avatarWrapper.appendChild(match);
+
+                const avatar = document.createElement('img');
+                avatar.className = 'result-avatar-img';
+                avatar.src = previewImg;
+                avatar.alt = `Perfil encontrado em ${rede.nome}`;
+
+                if (urlPerfil) {
+                    const avatarLink = document.createElement('a');
+                    avatarLink.className = 'result-avatar-link';
+                    avatarLink.href = urlPerfil;
+                    avatarLink.target = '_blank';
+                    avatarLink.rel = 'noopener noreferrer';
+                    avatarLink.setAttribute('aria-label', `Abrir perfil em ${rede.nome}`);
+                    avatarLink.appendChild(avatar);
+                    avatarWrapper.appendChild(avatarLink);
+                } else {
+                    avatarWrapper.appendChild(avatar);
+                }
+                card.appendChild(avatarWrapper);
+
+                const detalhes = document.createElement('div');
+                detalhes.className = 'result-text-details';
+                const redeLinha = document.createElement('div');
+                redeLinha.className = 'network-label-row';
+                const iconeRede = document.createElement('span');
+                iconeRede.className = 'social-network-icon';
+                iconeRede.appendChild(criarIconeRede(rede));
+                redeLinha.appendChild(iconeRede);
+                redeLinha.appendChild(document.createTextNode(rede.nome));
+                const titulo = document.createElement('div');
+                titulo.className = 'username-blur-text';
+                titulo.textContent = tituloPerfil;
+                detalhes.append(redeLinha, titulo);
+                card.appendChild(detalhes);
+
+                const botaoAcesso = document.createElement(urlPerfil ? 'a' : 'span');
+                botaoAcesso.className = `btn-unlock-square social-access-btn${urlPerfil ? '' : ' is-disabled'}`;
+                if (urlPerfil) {
+                    botaoAcesso.href = urlPerfil;
+                    botaoAcesso.target = '_blank';
+                    botaoAcesso.rel = 'noopener noreferrer';
+                } else {
+                    botaoAcesso.setAttribute('aria-disabled', 'true');
+                }
+                botaoAcesso.appendChild(criarIconeRede(rede));
+                botaoAcesso.appendChild(document.createTextNode(urlPerfil ? ` ACESSAR ${rede.nome.toUpperCase()}` : ' FONTE INDISPONÍVEL'));
+                card.appendChild(botaoAcesso);
+                container.appendChild(card);
             });
 
             document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
@@ -2492,7 +2551,8 @@
 
         function atualizarInterfaceSaldo() {
             document.getElementById('userCreditsCount').innerText = saldoCreditos;
-            document.getElementById('creditsBadge').style.display = 'flex';
+            document.getElementById('userDrawerCreditsCount').innerText = saldoCreditos;
+            document.getElementById('creditsBadge').style.display = usuarioEmail ? 'flex' : 'none';
         }
 
         function abrirModalPlanos() {
