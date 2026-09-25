@@ -78,7 +78,7 @@ test('Persistência PostgreSQL com o schema exato, em memória', async t => {
         const c = (await db.query('SELECT * FROM public.comissoes_afiliados WHERE payment_id=$1', [f.data.payment_id])).rows[0];
         assert.equal(c.percentual, 15);
         assert.equal(Number(c.valor_comissao), 15);
-        assert.equal(await store.recordClick(f.af.codigo), false);
+        assert.equal(await store.recordClick(f.af.codigo, 'a'.repeat(64)), null);
         await assert.rejects(db.query('UPDATE public.comissoes_afiliados SET valor_comissao=1 WHERE id=$1', [c.id]));
     });
 
@@ -87,6 +87,15 @@ test('Persistência PostgreSQL com o schema exato, em memória', async t => {
         await store.updateAffiliate(f.af.codigo, 10, 'inativo');
         await store.syncPayment(f.data.payment_id, f.remote('approved'));
         assert.equal((await store.affiliateSummary(f.af.codigo)).metricas.vendas, 0);
+    });
+
+    await t.test('cliques repetidos usam deduplicação atômica', async () => {
+        const af = await store.createAffiliate({ nome: 'Clique único', email: '', percentual: 10 });
+        const key = 'b'.repeat(64);
+        const results = await Promise.all(Array.from({ length: 8 }, () => store.recordClick(af.codigo, key)));
+        assert.equal(results.filter(Boolean).length, 1);
+        assert.equal((await db.query('SELECT count(*) FROM public.cliques_afiliados WHERE afiliado_codigo=$1',
+            [af.codigo])).rows[0].count, 1);
     });
 
     await t.test('descontos repetidos não ficam negativos e não perdem atualização', async () => {
@@ -143,7 +152,7 @@ test('Persistência PostgreSQL com o schema exato, em memória', async t => {
 
     await t.test('cancelamento antes do repasse exclui métricas sem gerar ajuste', async () => {
         const f = await fixture();
-        await store.recordClick(f.af.codigo);
+        await store.recordClick(f.af.codigo, 'c'.repeat(64));
         await store.syncPayment(f.data.payment_id, f.remote('approved'));
         await store.syncPayment(f.data.payment_id, f.remote('cancelled'));
         const summary = await store.affiliateSummary(f.af.codigo);
@@ -299,7 +308,22 @@ test('Persistência PostgreSQL com o schema exato, em memória', async t => {
             assert.equal((await post('/api/admin/afiliados/listar', {}, { ...admin, csrfToken: 'A'.repeat(43) })).status, 403);
             const af = (await post('/api/admin/afiliados/criar', { nome: 'HTTP', percentual: 15 }, admin)).body.afiliado;
             assert.equal((await fetch(base + '/api/afiliados/validar/' + af.codigo)).status, 200);
-            assert.deepEqual((await post('/api/afiliados/clique', { codigo: af.codigo })).body, { success: true });
+            const firstClick = await post('/api/afiliados/clique', { codigo: af.codigo });
+            assert.deepEqual(firstClick.body, { success: true, counted: true });
+            assert.ok(firstClick.cookie?.startsWith('__Host-radar_affiliate_visitor='));
+            const repeatedClick = await post('/api/afiliados/clique', { codigo: af.codigo }, null,
+                { cookie: firstClick.cookie });
+            assert.deepEqual(repeatedClick.body, { success: true, counted: false });
+            assert.equal((await db.query('SELECT count(*) FROM public.cliques_afiliados WHERE afiliado_codigo=$1',
+                [af.codigo])).rows[0].count, 1);
+            for (let attempt = 0; attempt < 8; attempt++) {
+                assert.equal((await post('/api/afiliados/clique', { codigo: af.codigo }, null,
+                    { cookie: firstClick.cookie })).status, 200);
+            }
+            const limitedClick = await post('/api/afiliados/clique', { codigo: af.codigo }, null,
+                { cookie: firstClick.cookie });
+            assert.equal(limitedClick.status, 429);
+            assert.equal(limitedClick.body.success, false);
             const pix = await post('/api/criar-pix', { valor: 50, creditos: 2, afiliado_codigo: af.codigo }, user,
                 { 'idempotency-key': 'pix-http-1' });
             assert.equal(pix.status, 200);

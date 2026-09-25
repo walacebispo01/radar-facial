@@ -66,11 +66,12 @@ CREATE TABLE public.transacoes (
     CONSTRAINT transacoes_pagamento_afiliado_unicos UNIQUE (payment_id, afiliado_codigo)
 );
 
--- cliquesAfiliados[]. Cada chamada aceita é um clique independente;
--- não deduplicar por usuário, IP ou data, pois o backend não faz isso.
+-- Cliques de afiliados. dedupe_key representa visitante + afiliado + dia UTC;
+-- não armazena IP nem o identificador anônimo do navegador em formato reversível.
 CREATE TABLE public.cliques_afiliados (
     id text PRIMARY KEY,
     afiliado_codigo varchar(40) NOT NULL REFERENCES public.afiliados(codigo),
+    dedupe_key text NOT NULL UNIQUE CHECK (dedupe_key ~ '^[a-f0-9]{64}$'),
     criado_em timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

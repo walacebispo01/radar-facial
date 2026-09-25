@@ -9,7 +9,8 @@
     "test:db": "node scripts/test-db.js",
     "migration:status": "node scripts/check-migration.js",
     "migrate:sessions": "node scripts/migrate-sessions.js",
-    "check": "node --check server.js && node --check lib/auth.js && node --check lib/database.js && node --check lib/google-auth.js && node --check lib/postgres-store.js && node --check lib/session-store.js && node --check public/auth.js && node --check scripts/check-migration.js && node --check scripts/migrate-sessions.js && node --check scripts/test-db.js"
+    "migrate:affiliate-clicks": "node scripts/migrate-affiliate-clicks.js",
+    "check": "node --check server.js && node --check lib/auth.js && node --check lib/database.js && node --check lib/google-auth.js && node --check lib/postgres-store.js && node --check lib/rate-limit.js && node --check lib/session-store.js && node --check public/auth.js && node --check scripts/check-migration.js && node --check scripts/migrate-affiliate-clicks.js && node --check scripts/migrate-sessions.js && node --check scripts/test-db.js"
   },
   "keywords": [],
   "author": "",

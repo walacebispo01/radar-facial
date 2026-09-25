@@ -5,6 +5,7 @@ const { createStore, StoreError } = require('./lib/postgres-store');
 const { createSessionStore } = require('./lib/session-store');
 const { createGoogleVerifier } = require('./lib/google-auth');
 const { createAuth, isAuthPath } = require('./lib/auth');
+const { createRateLimiter } = require('./lib/rate-limit');
 const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
@@ -36,6 +37,53 @@ app.use(['/api/descontar-credito', '/api/criar-pix', '/api/verificar-pix', '/api
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+const AFFILIATE_VISITOR_COOKIE = '__Host-radar_affiliate_visitor';
+const AFFILIATE_VISITOR_MAX_AGE = 180 * 24 * 60 * 60 * 1000;
+
+function readCookie(req, name) {
+    const prefix = `${name}=`;
+    const matches = String(req.headers.cookie || '').split(';').map(value => value.trim())
+        .filter(value => value.startsWith(prefix));
+    if (matches.length !== 1) return null;
+    const value = matches[0].slice(prefix.length);
+    return /^[A-Za-z0-9_-]{43}$/.test(value) ? value : null;
+}
+
+function affiliateVisitor(req, res) {
+    const existing = readCookie(req, AFFILIATE_VISITOR_COOKIE);
+    if (existing) return existing;
+    const created = crypto.randomBytes(32).toString('base64url');
+    res.cookie(AFFILIATE_VISITOR_COOKIE, created, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: AFFILIATE_VISITOR_MAX_AGE
+    });
+    return created;
+}
+
+function affiliateClickKey(codigo, visitor, now = new Date()) {
+    const utcDay = now.toISOString().slice(0, 10);
+    return crypto.createHash('sha256').update(`${codigo}\0${visitor}\0${utcDay}`).digest('hex');
+}
+
+function requestIp(req) {
+    const cloudflareIp = String(req.get('CF-Connecting-IP') || '').trim();
+    return cloudflareIp || req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+const affiliateGlobalLimit = createRateLimiter({
+    windowMs: 60 * 1000,
+    max: 60,
+    keyGenerator: req => `affiliate-global:${requestIp(req)}`
+});
+const affiliateCodeLimit = createRateLimiter({
+    windowMs: 60 * 1000,
+    max: 10,
+    keyGenerator: req => `affiliate-code:${requestIp(req)}:${normalizarCodigoAfiliado(req.body?.codigo)}`
 });
 
 // Sirva apenas o frontend pela rota acima; a raiz contém código e dados privados.
@@ -156,12 +204,15 @@ app.post('/api/admin/afiliados/atualizar', async (req, res) => {
     } catch (error) { return erroAfiliado(res, error, 'Erro ao atualizar afiliado.'); }
 });
 
-app.post('/api/afiliados/clique', async (req, res) => {
+app.post('/api/afiliados/clique', affiliateGlobalLimit, affiliateCodeLimit, async (req, res) => {
     try {
-        if (!await store.recordClick(normalizarCodigoAfiliado(req.body?.codigo))) {
+        const codigo = normalizarCodigoAfiliado(req.body?.codigo);
+        const visitor = affiliateVisitor(req, res);
+        const counted = await store.recordClick(codigo, affiliateClickKey(codigo, visitor));
+        if (counted === null) {
             return res.status(404).json({ success: false, error: 'Afiliado inválido.' });
         }
-        return res.json({ success: true });
+        return res.json({ success: true, counted });
     } catch (error) { return erroAfiliado(res, error, 'Erro ao registrar clique.'); }
 });
 
@@ -189,6 +240,7 @@ app.get('/api/afiliados/validar/:codigo', async (req, res) => {
     try {
         const afiliado = await store.findAffiliate(normalizarCodigoAfiliado(req.params.codigo));
         if (!afiliado || afiliado.status !== 'ativo') return res.status(404).json({ success: false, valido: false });
+        affiliateVisitor(req, res);
         return res.json({ success: true, valido: true, codigo: afiliado.codigo });
     } catch (error) { return res.status(500).json({ success: false, valido: false }); }
 });

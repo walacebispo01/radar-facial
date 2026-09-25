@@ -14,6 +14,7 @@ npm run check
 npm test
 npm run test:db
 npm run migrate:sessions
+npm run migrate:affiliate-clicks
 ```
 
 `npm start` verifica a conexão antes de abrir a porta HTTP. O pool possui limites
@@ -27,6 +28,10 @@ A migração `sql/migrations/001-sessoes.sql` cria as sessões e o livro de cons
 idempotente das buscas faciais. Aplique-a uma única vez no Neon antes de publicar
 esta versão. `npm run migrate:sessions` usa `DATABASE_URL`, executa o arquivo
 inteiro em uma transação e faz rollback em caso de erro.
+
+A migração `sql/migrations/002-protecao-cliques-afiliados.sql` adiciona a chave
+anônima de deduplicação dos cliques. Aplique-a antes de publicar a versão que usa
+`recordClick(codigo, dedupeKey)`. Ela preserva os cliques antigos e não armazena IP.
 
 Variáveis obrigatórias em produção:
 
@@ -95,7 +100,8 @@ Nenhum teste automatizado importa dados nem grava fixtures no Neon.
 
 1. Revogar os segredos expostos e cadastrar somente os novos valores na hospedagem.
 2. Conferir `APP_ORIGIN`, `ADMIN_EMAILS`, `GOOGLE_CLIENT_ID` e `DATABASE_URL`.
-3. Executar `npm run test:db` e `npm run migrate:sessions` contra o Neon correto.
+3. Executar `npm run test:db`, `npm run migrate:sessions` e
+   `npm run migrate:affiliate-clicks` contra o Neon correto.
 4. Executar `npm run check` e `npm test`, publicar e aguardar o health check.
 5. Em janela anônima, validar login/restauração/logout, criação e confirmação de
    PIX, uma busca FaceCheck com saldo, falha sem saldo e administração permitida/negada.
