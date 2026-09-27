@@ -33,6 +33,7 @@ app.use(express.json());
 app.use((req, res, next) => isAuthPath(req.path) ? auth.noStore(req, res, next) : next());
 app.get('/auth.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth.js')));
 require('./lib/photo-assets')(app);
+require('./lib/test-credit').mountTestCredit(app, { auth, store });
 mountProgram(app, { auth, creators: creatorStore, commissions: commissionProgram, security: programSecurity, isAdmin: emailEhAdmin });
 app.get('/api/session', auth.requireSession, auth.session);
 app.post('/api/logout', auth.browserMutation, auth.requireSession, auth.csrf, auth.logout);
