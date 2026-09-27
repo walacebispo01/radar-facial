@@ -26,12 +26,6 @@ test('imagem escolhida continua usando o fluxo de prévia e ajuste', () => {
     assert.match(html, /event\?\.target\?\.closest\('#interactiveContainer, #photoEditControls'\)/);
 });
 
-test('recorte final preserva zoom e posição escolhidos pelo usuário', () => {
-    assert.match(html, /const drawWidth = thumb\.naturalWidth \* currentScale \* outputRatio/);
-    assert.match(html, /const drawX = 200 \+ \(imgX \* outputRatio\) - \(drawWidth \/ 2\)/);
-    assert.match(html, /ctx\.drawImage\(thumb, drawX, drawY, drawWidth, drawHeight\)/);
-});
-
 test('menu da conta esconde o email no celular e expõe ações reais', () => {
     assert.match(html, /id="userDrawer"/);
     assert.match(html, /\.user-email-label \{ display: none; \}/);

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Painel de criadores · Radar Facial</title>
+  <link rel="stylesheet" href="/creator-panel.css">
+  <script src="/auth.js" defer></script>
+  <script src="/creator-panel.js" defer></script>
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="/">radar<span>facial</span></a><span class="badge">Área de criadores</span><button id="logout" class="quiet" hidden>Sair</button></header>
+  <main>
+    <div class="heading"><p class="eyebrow">Seu programa de criadores</p><h1>Visão geral</h1><p id="identity" class="muted">Restaurando sua sessão…</p></div>
+    <div id="notice" role="status" aria-live="polite" hidden></div>
+    <section id="entry" class="surface" hidden><h2>Entre para acessar o painel</h2><p>Use sua conta cadastrada de criador ou administrador.</p><a class="button" href="/">Entrar com Google</a></section>
+    <div id="app" hidden>
+      <nav aria-label="Seções do painel"><button data-tab="commissions" aria-current="page">Comissões</button><button data-tab="network">Minha rede</button><button data-tab="scenarios" hidden>Cenários</button><button data-tab="creators" hidden>Administração</button></nav>
+      <section id="stepup" class="surface unlock" hidden aria-labelledby="unlock-title">
+        <div><h2 id="unlock-title">Confirmar acesso administrativo</h2><p class="muted">Digite o código de 6 dígitos do autenticador. A autorização para alterações dura 5 minutos.</p></div>
+        <form id="unlock-form"><label>Código do autenticador<input id="totp" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label><button type="submit">Confirmar acesso</button><p class="form-status" role="status"></p></form>
+      </section>
+      <section id="commissions" class="tab-section">
+        <div class="section-heading"><div><h2>Comissões</h2><p class="muted">Acompanhe os valores registrados e seus ajustes por reembolso.</p></div></div>
+        <form id="commission-filters" class="surface filters">
+          <label>De<input type="date" name="from"></label><label>Até<input type="date" name="to"></label>
+          <label>ID do pagamento<input name="payment_id" inputmode="numeric" placeholder="Mercado Pago"></label>
+          <label>Status<select name="status"><option value="">Todos</option><option value="pending">Pendente</option><option value="approved">Aprovado</option><option value="refunded">Reembolsado</option><option value="cancelled">Cancelado</option></select></label>
+          <label>Origem<select name="origin"><option value="">Todas</option><option value="direct">Venda direta</option><option value="network">Rede</option></select></label>
+          <label>Nível<input name="level" type="number" min="0" max="100" placeholder="Todos"></label>
+          <label>Comissão-base (%)<input name="percentual" type="number" min="0" max="30" step="0.01" placeholder="Todas"></label>
+          <label>Reembolso<select name="refund"><option value="">Todos</option><option value="partial">Parcial</option><option value="full">Integral</option></select></label>
+          <label id="commission-creator-filter" hidden>ID do criador<input name="creator_id" placeholder="Todos"></label>
+          <div class="filter-actions"><button type="submit">Aplicar filtros</button><button type="reset" class="quiet">Limpar</button></div>
+        </form>
+        <div id="metrics" class="metrics"></div>
+        <div id="commission-list" class="surface results" aria-live="polite"></div><div id="commission-pages" class="pagination"></div>
+      </section>
+      <section id="network" class="tab-section" hidden><h2>Rede de criadores</h2><p class="muted">Relações de indicação e níveis da sua rede.</p><form id="network-filter" class="surface filters"><label>ID da raiz da rede<input name="id" required></label><button type="submit">Consultar rede</button></form><div id="network-list" class="surface results" aria-live="polite"></div><div id="network-pages" class="pagination"></div></section>
+      <section id="scenarios" class="tab-section" hidden><h2>Cenários de gravação</h2><p class="muted">Ferramenta privada para preparar os links que aparecerão na sua gravação.</p><form id="scenario-form" class="surface stack"><input name="id" type="hidden"><label>Nome do cenário<input name="nome" maxlength="120" required placeholder="Minha próxima gravação"></label><label>Links, um por linha<textarea name="links" rows="5" required placeholder="https://exemplo.com/perfil"></textarea></label><div class="actions"><button type="submit">Salvar cenário</button><button type="reset" class="quiet">Novo cenário</button></div><p class="form-status" role="status"></p></form><div id="scenario-list" class="scenario-grid" aria-live="polite"></div></section>
+      <section id="creators" class="tab-section" hidden>
+        <h2>Administração de criadores</h2><p class="muted">Gerencie acessos, créditos e o percentual-base das próximas vendas.</p>
+        <form id="creator-filters" class="surface filters"><label>Buscar<input name="q" placeholder="Nome ou e-mail"></label><label>Status<select name="status"><option value="">Todos</option><option value="ativo">Ativo</option><option value="suspenso">Suspenso</option></select></label><button type="submit">Buscar</button></form>
+        <details class="surface"><summary>Cadastrar criador</summary><form id="creator-form" class="stack"><label>Nome<input name="nome" required maxlength="120"></label><label>E-mail<input type="email" name="email" required></label><label>ID do indicador (opcional)<input name="parent_id"></label><label>Comissão-base (%)<input type="number" name="percentual" required min="0" max="30" step="0.01" value="10"></label><label class="check"><input type="checkbox" name="demo_enabled">Liberar cenários de gravação</label><label>Motivo do cadastro<input name="motivo" required maxlength="500"></label><button type="submit">Cadastrar</button><p class="form-status" role="status"></p></form></details>
+        <div id="creator-list" class="surface results" aria-live="polite"></div><div id="creator-pages" class="pagination"></div>
+      </section>
+    </div>
+    <dialog id="detail"><div class="dialog-header"><h2 id="detail-title">Detalhes</h2><button id="close-detail" class="quiet" aria-label="Fechar detalhes">Fechar</button></div><div id="detail-body"></div></dialog>
+  </main>
+  <footer>Radar Facial · Painel de acompanhamento</footer>
+</body>
+</html>

@@ -5,6 +5,8 @@ const { createStore, StoreError } = require('./lib/postgres-store');
 const { createSessionStore } = require('./lib/session-store');
 const { createGoogleVerifier } = require('./lib/google-auth');
 const { createAuth, isAuthPath } = require('./lib/auth');
+const { mountProgram } = require('./lib/program-routes');
+const { createProgramSecurity, verifyMercadoPagoSignature } = require('./lib/program-security');
 const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
@@ -14,6 +16,7 @@ const FormData = require('form-data');
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 function createApp({ store, sessions, payment: paymentOverride, verifyGoogle,
+    creatorStore, commissionProgram, programSecurity, webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET,
     appOrigin = process.env.APP_ORIGIN || process.env.RENDER_EXTERNAL_URL } = {}) {
 if (!store) throw new Error('Persistência PostgreSQL obrigatória.');
 const app = express();
@@ -29,10 +32,26 @@ app.use((req, res, next) => isAuthPath(req.path) ? next() : publicCors(req, res,
 app.use(express.json());
 app.use((req, res, next) => isAuthPath(req.path) ? auth.noStore(req, res, next) : next());
 app.get('/auth.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth.js')));
+require('./lib/photo-assets')(app);
+mountProgram(app, { auth, creators: creatorStore, commissions: commissionProgram, security: programSecurity, isAdmin: emailEhAdmin });
 app.get('/api/session', auth.requireSession, auth.session);
 app.post('/api/logout', auth.browserMutation, auth.requireSession, auth.csrf, auth.logout);
 app.use(['/api/descontar-credito', '/api/criar-pix', '/api/verificar-pix', '/api/escanear-rosto', '/api/admin/afiliados'],
     auth.browserMutation, auth.requireSession, auth.csrf);
+if (programSecurity) {
+    app.use('/api/admin/afiliados', (req, res, next) => {
+        if (!emailEhAdmin(req.auth?.email)) return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
+        // Legacy mutation endpoints cannot bypass the new administrator second factor.
+        const endpoint = req.path.toLowerCase().replace(/\/+$/, '');
+        if (['/criar', '/atualizar', '/pagar'].includes(endpoint)) {
+            if (!creatorStore) return res.status(503).json({ success: false, error: 'Administração temporariamente desativada.' });
+            return programSecurity.requireStepUp(req, res, next);
+        }
+        next();
+    }, programSecurity.limiter('legacy-admin', 60));
+    app.use(['/api/criar-pix', '/api/verificar-pix', '/api/escanear-rosto'], programSecurity.limiter('paid-operations', 30));
+    app.use('/api/login-google', programSecurity.limiter('login', 30));
+}
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
@@ -541,6 +560,10 @@ app.post('/api/verificar-pix', async (req, res) => {
 
 app.post('/api/mercadopago-webhook', async (req, res) => {
     try {
+        if ((commissionProgram || webhookSecret) && !verifyMercadoPagoSignature(req, webhookSecret)) {
+            return res.sendStatus(401);
+        }
+        if (programSecurity && !await programSecurity.consume('webhook', req.ip, 120, 60)) return res.sendStatus(429);
         const paymentId = req.query?.['data.id'] || req.query?.id || req.body?.data?.id || req.body?.id;
         if (paymentId) await store.syncPayment(String(paymentId), consultarPagamento);
         // Confirmar apenas depois do COMMIT permite ao provedor repetir falhas.
@@ -1431,13 +1454,44 @@ return app;
 
 async function startServer() {
 const pool = createPool();
+let commissionProgram, creatorStore, programSecurity;
+const programEnabled = process.env.CREATOR_PROGRAM_ENABLED === 'true';
 try {
     await pool.query('SELECT 1');
+    const migrated = (await pool.query("SELECT to_regclass('public.comissoes_rede_eventos') AS relation")).rows[0].relation;
+    // Existing snapshots must continue to receive refunds even during a feature rollback.
+    if (migrated || programEnabled) {
+        if (!process.env.MERCADOPAGO_WEBHOOK_SECRET) throw new Error('Configure MERCADOPAGO_WEBHOOK_SECRET antes de ativar o programa.');
+        if (!migrated) throw new Error('Execute migrate:creators antes de ativar o programa.');
+        commissionProgram = require('./lib/commission-program').createCommissionProgram(pool);
+        programSecurity = createProgramSecurity(pool);
+    }
+    if (programEnabled) {
+        const maxGrant = Number(process.env.MAX_ADMIN_GRANT || 1000);
+        if (!Number.isSafeInteger(maxGrant) || maxGrant < 1) throw new Error('MAX_ADMIN_GRANT deve ser um inteiro positivo.');
+        const tables = ['criadores', 'criadores_creditos', 'criadores_cenarios', 'comissoes_rede_eventos', 'comissoes_rede_lancamentos', 'admin_stepup'];
+        for (const table of tables) {
+            const { rows } = await pool.query('SELECT to_regclass($1) AS relation', ['public.' + table]);
+            if (!rows[0].relation) throw new Error('Execute migrate:creators antes de ativar o programa.');
+        }
+        creatorStore = require('./lib/creator-store').createCreatorStore(pool, { maxGrant });
+    }
 } catch (error) {
     await pool.end();
-    throw new Error('Não foi possível conectar ao PostgreSQL. Verifique a configuração local.');
+    throw error;
 }
-const app = createApp({ store: createStore(pool), sessions: createSessionStore(pool) });
+const app = createApp({ store: createStore(pool, { commissionProgram }), sessions: createSessionStore(pool),
+    creatorStore, commissionProgram, programSecurity });
+let workerRunning = null;
+const runWorker = () => {
+    if (!commissionProgram || workerRunning) return;
+    workerRunning = commissionProgram.processPending(20)
+        .catch(() => console.error('Não foi possível processar comissões. A fila será tentada novamente.'))
+        .finally(() => { workerRunning = null; });
+};
+const workerTimer = commissionProgram ? setInterval(runWorker, 15000) : null;
+workerTimer?.unref();
+runWorker();
 const PORT =
     process.env.PORT ||
     3000;
@@ -1489,13 +1543,18 @@ let shuttingDown = false;
 const shutdown = () => {
     if (shuttingDown) return;
     shuttingDown = true;
-    server.close(() => pool.end().catch(() => { process.exitCode = 1; }));
+    clearInterval(workerTimer);
+    server.close(async () => {
+        await workerRunning;
+        await pool.end().catch(() => { process.exitCode = 1; });
+    });
 };
 process.once('SIGTERM', shutdown);
 process.once('SIGINT', shutdown);
 server.on('error', () => {
     console.error('Não foi possível iniciar o servidor HTTP.');
-    pool.end().catch(() => {});
+    clearInterval(workerTimer);
+    Promise.resolve(workerRunning).then(() => pool.end()).catch(() => {});
     process.exitCode = 1;
 });
 return server;

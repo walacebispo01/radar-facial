@@ -75,6 +75,9 @@
             box-shadow: 0 0 60px rgba(245, 158, 11, 0.6), 0 25px 50px rgba(0,0,0,0.9);
         }
 
+        body.focus-mode #photoFeedback { filter: none; opacity: 1; pointer-events: auto; }
+        body.focus-mode .social-proof-toast { display: none !important; }
+
         .main-content-wrapper {
             width: 100%;
             display: flex;
@@ -327,7 +330,7 @@
             height: 150px;
             box-shadow: 0 0 35px var(--gold-glow), 0 20px 40px rgba(0,0,0,0.8);
             cursor: pointer;
-            transition: width 0.4s ease, height 0.4s ease, box-shadow 0.4s ease;
+            transition: box-shadow 0.4s ease;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -452,13 +455,14 @@
             width: 4px; height: 4px;
             background: rgba(255, 255, 255, 0.25);
             border-radius: 50%;
+            transform: translate(-50%, -50%);
             transition: all 0.15s ease;
         }
 
         .mesh-dot.active {
             background: #ffffff;
             box-shadow: 0 0 10px #ffffff, 0 0 16px #00f2fe;
-            transform: scale(1.4);
+            transform: translate(-50%, -50%) scale(1.4);
         }
 
         .face-mesh-svg {
@@ -1531,18 +1535,7 @@
                     <div class="scanner-laser" id="scannerLaser"></div>
                     
                     <div class="face-mesh-overlay" id="faceMeshOverlay">
-                        <svg class="face-mesh-svg" id="meshSvg">
-                            <line class="mesh-line" id="l0" x1="0" y1="0" x2="0" y2="0" />
-                            <line class="mesh-line" id="l1" x1="0" y1="0" x2="0" y2="0" />
-                            <line class="mesh-line" id="l2" x1="0" y1="0" x2="0" y2="0" />
-                            <line class="mesh-line" id="l3" x1="0" y1="0" x2="0" y2="0" />
-                            <line class="mesh-line" id="l4" x1="0" y1="0" x2="0" y2="0" />
-                            <line class="mesh-line" id="l5" x1="0" y1="0" x2="0" y2="0" />
-                            <line class="mesh-line" id="l6" x1="0" y1="0" x2="0" y2="0" />
-                            <line class="mesh-line" id="l7" x1="0" y1="0" x2="0" y2="0" />
-                            <line class="mesh-line" id="l8" x1="0" y1="0" x2="0" y2="0" />
-                            <line class="mesh-line" id="l9" x1="0" y1="0" x2="0" y2="0" />
-                        </svg>
+                        <svg class="face-mesh-svg" id="meshSvg" viewBox="0 0 100 100" aria-hidden="true"></svg>
                         <div id="meshDotsContainer"></div>
                     </div>
 
@@ -1574,6 +1567,7 @@
             <button class="scan-action-btn" id="scanBtn" onclick="clicarProcurar()">
                 <i class="fa-solid fa-magnifying-glass"></i> PROCURAR RESULTADOS
             </button>
+            <p id="photoFeedback" role="status" aria-live="polite" style="display:none; color:var(--gold); max-width:480px; margin:16px auto; padding:0 16px;"></p>
 
             <br>
             <div class="guarantee-badge">
@@ -1591,7 +1585,7 @@
         </div>
 
         <div class="results-section" id="resultsSection">
-            <h2 class="results-header-title">perfis públicos identificados</h2>
+            <h2 class="results-header-title" id="resultsTitle">Sua pesquisa</h2>
             <div class="results-grid" id="resultsGridContainer"></div>
         </div>
 
@@ -1627,6 +1621,9 @@
             <strong><span id="userDrawerCreditsCount">0</span> pesquisas</strong>
         </div>
         <div class="user-drawer-actions">
+            <button class="user-drawer-action" id="creatorPanelBtn" type="button" style="display:none" onclick="location.assign('/painel')">
+                <i class="fa-solid fa-user-group"></i> Painel de criadores
+            </button>
             <button class="user-drawer-action" type="button" onclick="abrirPlanosPeloMenu()">
                 <i class="fa-solid fa-cart-shopping"></i> Comprar pesquisas
             </button>
@@ -1809,9 +1806,21 @@
     </div>
 
     <script src="/auth.js"></script>
+    <script src="/creator-demo.js"></script>
+    <script src="/photo-geometry.js"></script>
+    <script src="/face-landmarks.js"></script>
     <script>
         let pixCopiaCola = "";
         let scanHighlightInterval = null;
+        let scanProgressInterval = null;
+        let photoRevision = 0;
+        let scanRevision = 0;
+        let photoLoading = false;
+        let photoBusy = false;
+        let photoViewport = 0;
+        let preparedPhoto = null;
+        let detectedMesh = null;
+        let searchRequestKey = null;
         let timerInterval = null;
         let idTransacaoAtual = null;
         let quantidadeCreditosComprando = 1;
@@ -1879,6 +1888,12 @@
         }
 
         function cancelarModoFoco() {
+            limparEscaneamento();
+            photoRevision++;
+            photoLoading = false;
+            preparedPhoto = null;
+            searchRequestKey = null;
+            mostrarAvisoFoto('');
             document.body.classList.remove('focus-mode');
             document.getElementById('zoomHint').style.display = 'none';
             document.getElementById('interactiveContainer').style.display = 'none';
@@ -1911,6 +1926,7 @@
         }
 
         function aplicarSessao(session) {
+            if (usuarioEmail && usuarioEmail !== (session?.email || null)) voltarParaInicio();
             usuarioEmail = session?.email || null;
             saldoCreditos = Number(session?.creditos || 0);
             usuarioEhAdmin = session?.isAdmin === true;
@@ -1927,6 +1943,7 @@
                 fecharMenuUsuario();
             }
             atualizarInterfaceSaldo();
+            RadarCreatorDemo.onSession(session, authClient);
         }
 
         async function sairDaConta() {
@@ -1978,6 +1995,7 @@
         }
 
         function abrirOpcoesFoto(event) {
+            if (photoBusy) return;
             if (event) {
                 event.stopPropagation();
                 event.preventDefault();
@@ -2012,6 +2030,7 @@
         }
 
         function carregarFotoDireta(event) {
+            if (photoBusy) return;
             const file = event.target.files[0];
             if (!file) return;
             if (!file.type.startsWith('image/')) {
@@ -2021,7 +2040,16 @@
             }
 
             const reader = new FileReader();
+            const revision = ++photoRevision;
+            photoLoading = true;
+            preparedPhoto = null;
+            reader.onerror = () => {
+                if (revision !== photoRevision) return;
+                photoLoading = false;
+                mostrarAvisoFoto('Não foi possível ler essa foto. Escolha outra imagem.');
+            };
             reader.onload = function(e) {
+                if (revision !== photoRevision) return;
                 aplicarImagemSelecionada(e.target.result);
             }
             reader.readAsDataURL(file);
@@ -2029,46 +2057,55 @@
 
         function aplicarImagemSelecionada(imageDataUrl) {
             const thumb = document.getElementById('draggableThumb');
-            thumb.src = imageDataUrl;
-
+            const revision = ++photoRevision;
+            photoLoading = true;
+            preparedPhoto = null;
+            searchRequestKey = null;
+            mostrarAvisoFoto('Carregando foto...');
             thumb.onload = () => {
-                    const containerSize = window.matchMedia('(max-width: 600px)').matches
-                        ? Math.min(210, window.innerWidth * 0.64)
-                        : 220;
-                    const imgW = thumb.naturalWidth;
-                    const imgH = thumb.naturalHeight;
-                    
-                    const scaleX = containerSize / imgW;
-                    const scaleY = containerSize / imgH;
-                    minimumScale = Math.max(scaleX, scaleY);
-                    currentScale = minimumScale;
-
-                    imgX = 0; imgY = 0;
-                    atualizarTransformacaoImagem();
-                    
+                    if (revision !== photoRevision) return;
+                    document.body.classList.add('focus-mode');
                     document.getElementById('interactiveContainer').style.display = 'block';
                     document.getElementById('zoomHint').style.display = 'block';
                     document.getElementById('photoEditControls').classList.add('visible');
                     document.getElementById('uploadPlaceholder').style.display = 'none';
 
-                    document.body.classList.add('focus-mode');
+                    photoViewport = document.getElementById('interactiveContainer').clientWidth;
+                    minimumScale = Math.max(photoViewport / thumb.naturalWidth, photoViewport / thumb.naturalHeight);
+                    currentScale = minimumScale;
+                    imgX = 0; imgY = 0;
+                    photoLoading = false;
+                    atualizarTransformacaoImagem();
+                    mostrarAvisoFoto('');
             };
+            thumb.onerror = () => {
+                if (revision !== photoRevision) return;
+                photoLoading = false;
+                thumb.removeAttribute('src');
+                mostrarAvisoFoto('Não foi possível abrir essa foto. Tente uma imagem JPEG ou PNG.');
+            };
+            // Handlers must be installed before src, including for cached images.
+            thumb.src = imageDataUrl;
         }
 
         function configurarInteracaoCirculo() {
             const container = document.getElementById('interactiveContainer');
 
             container.addEventListener('mousedown', (e) => {
+                if (photoBusy || photoLoading) return;
                 isDragging = true;
-                startX = e.clientX - imgX;
-                startY = e.clientY - imgY;
+                startX = e.clientX;
+                startY = e.clientY;
                 e.preventDefault();
             });
 
             window.addEventListener('mousemove', (e) => {
-                if (!isDragging) return;
-                imgX = e.clientX - startX;
-                imgY = e.clientY - startY;
+                if (!isDragging || photoBusy) return;
+                const ratio = container.clientWidth / container.getBoundingClientRect().width;
+                imgX += (e.clientX - startX) * ratio;
+                imgY += (e.clientY - startY) * ratio;
+                startX = e.clientX;
+                startY = e.clientY;
                 atualizarTransformacaoImagem();
             });
 
@@ -2076,6 +2113,7 @@
 
             container.addEventListener('wheel', (e) => {
                 e.preventDefault();
+                if (photoBusy || photoLoading) return;
                 currentScale *= e.deltaY < 0 ? 1.12 : (1 / 1.12);
                 currentScale = Math.max(minimumScale, Math.min(minimumScale * 6, currentScale));
                 atualizarTransformacaoImagem();
@@ -2088,10 +2126,11 @@
             };
 
             container.addEventListener('touchstart', (e) => {
+                if (photoBusy || photoLoading) return;
                 if (e.touches.length === 1) {
                     touchDragging = true;
-                    touchStartX = e.touches[0].clientX - imgX;
-                    touchStartY = e.touches[0].clientY - imgY;
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
                 } else if (e.touches.length === 2) {
                     touchDragging = false;
                     pinchStartDistance = touchDistance(e.touches);
@@ -2102,9 +2141,13 @@
             }, { passive: false });
 
             container.addEventListener('touchmove', (e) => {
+                if (photoBusy || photoLoading) { e.preventDefault(); return; }
                 if (e.touches.length === 1 && touchDragging) {
-                    imgX = e.touches[0].clientX - touchStartX;
-                    imgY = e.touches[0].clientY - touchStartY;
+                    const ratio = container.clientWidth / container.getBoundingClientRect().width;
+                    imgX += (e.touches[0].clientX - touchStartX) * ratio;
+                    imgY += (e.touches[0].clientY - touchStartY) * ratio;
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
                     atualizarTransformacaoImagem();
                 } else if (e.touches.length === 2) {
                     const d = touchDistance(e.touches);
@@ -2125,8 +2168,8 @@
                     pinchStartDistance = 0;
                 } else if (e.touches.length === 1) {
                     touchDragging = true;
-                    touchStartX = e.touches[0].clientX - imgX;
-                    touchStartY = e.touches[0].clientY - imgY;
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
                     pinchStartDistance = 0;
                 }
                 e.preventDefault();
@@ -2136,15 +2179,32 @@
                 touchDragging = false;
                 pinchStartDistance = 0;
             }, { passive: false });
+            new ResizeObserver(() => {
+                const viewport = container.clientWidth;
+                const thumb = document.getElementById('draggableThumb');
+                if (!viewport || !photoViewport || photoLoading || !thumb.naturalWidth || viewport === photoViewport) return;
+                const state = RadarPhotoGeometry.resize({ width: thumb.naturalWidth, height: thumb.naturalHeight,
+                    viewport: photoViewport, scale: currentScale, x: imgX, y: imgY }, viewport);
+                photoViewport = viewport;
+                currentScale = state.scale; imgX = state.x; imgY = state.y;
+                atualizarTransformacaoImagem();
+            }).observe(container);
         }
 
         function atualizarTransformacaoImagem() {
             const thumb = document.getElementById('draggableThumb');
+            const viewport = document.getElementById('interactiveContainer').clientWidth;
+            if (!thumb.naturalWidth || !viewport) return;
+            const state = RadarPhotoGeometry.frame({ width: thumb.naturalWidth, height: thumb.naturalHeight,
+                viewport, scale: currentScale, x: imgX, y: imgY });
+            currentScale = state.scale; minimumScale = state.minimum; imgX = state.x; imgY = state.y;
+            photoViewport = viewport;
             thumb.style.transform = `translate(calc(-50% + ${imgX}px), calc(-50% + ${imgY}px)) scale(${currentScale})`;
         }
 
         function ajustarZoomFoto(direcao, event) {
             event?.stopPropagation();
+            if (photoBusy || photoLoading) return;
             const fator = direcao > 0 ? 1.2 : (1 / 1.2);
             currentScale = Math.max(minimumScale, Math.min(minimumScale * 6, currentScale * fator));
             atualizarTransformacaoImagem();
@@ -2152,6 +2212,7 @@
 
         function centralizarFoto(event) {
             event?.stopPropagation();
+            if (photoBusy || photoLoading) return;
             imgX = 0;
             imgY = 0;
             currentScale = minimumScale;
@@ -2159,107 +2220,125 @@
         }
 
         function capturarImagemFinalCirculo() {
+            if (preparedPhoto) return preparedPhoto;
             const thumb = document.getElementById('draggableThumb');
-            if (!thumb.src || thumb.src === window.location.href) return null;
+            const viewport = document.getElementById('interactiveContainer').clientWidth;
+            if (photoLoading || !thumb.complete || !thumb.naturalWidth || !viewport) return null;
 
             const canvas = document.createElement('canvas');
             canvas.width = 400; canvas.height = 400;
             const ctx = canvas.getContext('2d');
 
-            ctx.clearRect(0, 0, 400, 400);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, 400, 400);
             ctx.save();
             ctx.beginPath();
             ctx.arc(200, 200, 200, 0, Math.PI * 2, true);
             ctx.clip();
 
-            const containerSize = document.getElementById('interactiveContainer').clientWidth || 220;
-            const outputRatio = 400 / containerSize;
-            const drawWidth = thumb.naturalWidth * currentScale * outputRatio;
-            const drawHeight = thumb.naturalHeight * currentScale * outputRatio;
-            const drawX = 200 + (imgX * outputRatio) - (drawWidth / 2);
-            const drawY = 200 + (imgY * outputRatio) - (drawHeight / 2);
-
-            ctx.drawImage(thumb, drawX, drawY, drawWidth, drawHeight);
+            const crop = RadarPhotoGeometry.crop({ width: thumb.naturalWidth, height: thumb.naturalHeight,
+                viewport, scale: currentScale, x: imgX, y: imgY });
+            ctx.drawImage(thumb, crop.x, crop.y, crop.width, crop.height);
             ctx.restore();
 
             return canvas.toDataURL('image/jpeg', 0.9);
         }
 
-        const pontosAnatomicosRosto = [
-            {id: 0, top: 22, left: 50}, {id: 1, top: 25, left: 40}, {id: 2, top: 25, left: 60},
-            {id: 3, top: 34, left: 33}, {id: 4, top: 34, left: 67},
-            {id: 5, top: 41, left: 37}, {id: 6, top: 41, left: 63},
-            {id: 7, top: 48, left: 50}, {id: 8, top: 54, left: 45}, {id: 9, top: 54, left: 55},
-            {id: 10, top: 66, left: 50}, {id: 11, top: 65, left: 41}, {id: 12, top: 65, left: 59},
-            {id: 13, top: 80, left: 50}, {id: 14, top: 52, left: 26}, {id: 15, top: 52, left: 74},
-            {id: 16, top: 30, left: 28}, {id: 17, top: 30, left: 72},
-            {id: 18, top: 72, left: 36}, {id: 19, top: 72, left: 64}
-        ];
+        function mostrarAvisoFoto(texto) {
+            const feedback = document.getElementById('photoFeedback');
+            feedback.textContent = texto;
+            feedback.style.display = texto ? 'block' : 'none';
+        }
 
-        const ligacoesWireframe = [
-            [0,1], [0,2], [1,16], [2,17], [16,3], [17,4], [3,5], [4,6],
-            [5,7], [6,7], [7,8], [7,9], [8,10], [9,10], [10,13], [3,14],
-            [14,18], [18,13], [4,15], [15,19], [19,13], [5,11], [6,12]
-        ];
+        function limparEscaneamento() {
+            scanRevision++;
+            clearInterval(scanHighlightInterval);
+            clearInterval(scanProgressInterval);
+            scanHighlightInterval = null;
+            scanProgressInterval = null;
+            photoBusy = false;
+            isDragging = false;
+            touchDragging = false;
+            pinchStartDistance = 0;
+            document.getElementById('scanBtn').disabled = false;
+            document.getElementById('orbitRing').classList.remove('scanning');
+            document.getElementById('uploadBtn').classList.remove('pulse-scan');
+            document.getElementById('scannerLaser').style.display = 'none';
+            document.getElementById('faceMeshOverlay').style.display = 'none';
+            document.getElementById('scanBrandHeader').style.display = 'none';
+            document.getElementById('scanLoader').style.display = 'none';
+            document.querySelectorAll('.icon-item').forEach(i => i.classList.remove('active-scan'));
+            document.querySelectorAll('.photo-edit-control').forEach(button => { button.disabled = false; });
+        }
 
-        function inicializarPontosMeshFixo() {
-            const container = document.getElementById('meshDotsContainer');
-            container.innerHTML = '';
-            pontosAnatomicosRosto.forEach((p) => {
+        function inicializarPontosDetectados() {
+            const dots = document.getElementById('meshDotsContainer');
+            const svg = document.getElementById('meshSvg');
+            dots.replaceChildren(); svg.replaceChildren();
+            const points = new Map(detectedMesh.points.map(point => [point.id, point]));
+            for (const point of detectedMesh.points) {
                 const dot = document.createElement('div');
                 dot.className = 'mesh-dot';
-                dot.id = 'mdot-' + p.id;
-                dot.style.top = p.top + '%';
-                dot.style.left = p.left + '%';
-                container.appendChild(dot);
-            });
+                dot.dataset.top = point.y * 100;
+                dot.style.left = (point.x * 100) + '%';
+                dot.style.top = (point.y * 100) + '%';
+                dots.appendChild(dot);
+            }
+            for (const [start, end] of detectedMesh.connections) {
+                const a = points.get(start), b = points.get(end);
+                if (!a || !b) continue;
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('class', 'mesh-line');
+                line.setAttribute('x1', a.x * 100); line.setAttribute('y1', a.y * 100);
+                line.setAttribute('x2', b.x * 100); line.setAttribute('y2', b.y * 100);
+                line.dataset.top = Math.max(a.y, b.y) * 100;
+                svg.appendChild(line);
+            }
         }
 
         function atualizarVarreduraProgressiva(progressoPercent) {
-            const alturaLaserTop = 10 + (progressoPercent * 0.9);
-
-            pontosAnatomicosRosto.forEach((p) => {
-                const dot = document.getElementById('mdot-' + p.id);
-                if (dot) {
-                    if (p.top <= alturaLaserTop) dot.classList.add('active');
-                    else dot.classList.remove('active');
-                }
-            });
-
-            ligacoesWireframe.forEach((lig, idx) => {
-                const lineEl = document.getElementById('l' + (idx % 10));
-                if (lineEl) {
-                    const p1 = pontosAnatomicosRosto.find(item => item.id === lig[0]);
-                    const p2 = pontosAnatomicosRosto.find(item => item.id === lig[1]);
-                    
-                    if (p1 && p2) {
-                        const containerSize = 220;
-                        lineEl.setAttribute('x1', (p1.left / 100) * containerSize);
-                        lineEl.setAttribute('y1', (p1.top / 100) * containerSize);
-                        lineEl.setAttribute('x2', (p2.left / 100) * containerSize);
-                        lineEl.setAttribute('y2', (p2.top / 100) * containerSize);
-
-                        if (p1.top <= alturaLaserTop && p2.top <= alturaLaserTop) lineEl.classList.add('active');
-                        else lineEl.classList.remove('active');
-                    }
-                }
+            document.querySelectorAll('#faceMeshOverlay [data-top]').forEach(element => {
+                element.classList.toggle('active', Number(element.dataset.top) <= progressoPercent);
             });
         }
 
-        function clicarProcurar() {
-            if (!usuarioEmail) {
-                abrirModalLogin();
-                return;
-            }
+        async function clicarProcurar() {
+            if (photoBusy) return;
+            if (!usuarioEmail) { abrirModalLogin(); return; }
+            if (photoLoading) { mostrarAvisoFoto('Aguarde a foto terminar de carregar.'); return; }
             const thumb = document.getElementById('draggableThumb');
-            if (!thumb.src || thumb.src === window.location.href) {
-                abrirOpcoesFoto();
-                return;
+            if (!thumb.naturalWidth) { abrirOpcoesFoto(); return; }
+            preparedPhoto = null;
+            const snapshot = capturarImagemFinalCirculo();
+            if (!snapshot) { mostrarAvisoFoto('Não foi possível preparar a foto. Escolha outra imagem.'); return; }
+            preparedPhoto = snapshot;
+            searchRequestKey = null;
+            photoBusy = true;
+            isDragging = false; touchDragging = false;
+            const revision = ++scanRevision;
+            document.getElementById('scanBtn').disabled = true;
+            document.querySelectorAll('.photo-edit-control').forEach(button => { button.disabled = true; });
+            mostrarAvisoFoto('Localizando o rosto na foto...');
+            try {
+                await RadarCreatorDemo.ensure();
+                if (revision !== scanRevision) return;
+                detectedMesh = await RadarFaceLandmarks.detect(snapshot);
+                if (revision !== scanRevision) return;
+                mostrarAvisoFoto('');
+                document.getElementById('zoomHint').style.display = 'none';
+                iniciarEscaneamentoSimulado();
+            } catch (error) {
+                if (revision !== scanRevision) return;
+                limparEscaneamento();
+                preparedPhoto = null;
+                const messages = {
+                    NO_FACE: 'Não encontramos um rosto nítido nesse enquadramento. Centralize o rosto ou escolha outra foto.',
+                    MULTIPLE_FACES: 'Há mais de um rosto no enquadramento. Aproxime e centralize apenas a pessoa que deseja pesquisar.',
+                };
+                mostrarAvisoFoto(messages[error.message] || (RadarCreatorDemo.requested ? error.message : 'Não foi possível carregar a análise do rosto. Confira sua conexão e tente novamente.'));
             }
-
-            document.getElementById('zoomHint').style.display = 'none';
-            iniciarEscaneamentoSimulado();
         }
+
 
         function abrirModalLogin() {
             document.body.classList.add('modal-open');
@@ -2280,64 +2359,48 @@
         }
 
         function iniciarEscaneamentoSimulado() {
-            const scanBtn = document.getElementById('scanBtn');
-            scanBtn.style.display = 'none';
+            document.getElementById('scanBtn').style.display = 'none';
             document.getElementById('resultsSection').style.display = 'none';
             document.getElementById('scanLoader').style.display = 'flex';
-
             document.getElementById('scanBrandHeader').style.display = 'flex';
-
-            const orbit = document.getElementById('orbitRing');
-            const uploadCenter = document.getElementById('uploadBtn');
-            const scannerLaser = document.getElementById('scannerLaser');
-            const faceMeshOverlay = document.getElementById('faceMeshOverlay');
-
-            orbit.classList.add('scanning');
-            uploadCenter.classList.add('pulse-scan');
-            scannerLaser.style.display = 'block';        
-            faceMeshOverlay.style.display = 'block';      
-
-            inicializarPontosMeshFixo();
-
+            document.getElementById('orbitRing').classList.add('scanning');
+            document.getElementById('uploadBtn').classList.add('pulse-scan');
+            document.getElementById('scannerLaser').style.display = 'block';
+            document.getElementById('faceMeshOverlay').style.display = 'block';
+            inicializarPontosDetectados();
             scanHighlightInterval = setInterval(animarDestaqueIcones, 250);
-
-            let fill = document.getElementById('progressFill');
-            let loaderText = document.getElementById('loaderText');
-            let width = 0;
-
-            const tempoTotalMs = 3500; 
-            const intervaloTick = 50;
-            const incrementoPorTick = (100 / (tempoTotalMs / intervaloTick));
-
-            let interval = setInterval(() => {
-                if (width >= 100) {
-                    clearInterval(interval);
-                    clearInterval(scanHighlightInterval);
-
-                    orbit.classList.remove('scanning');
-                    uploadCenter.classList.remove('pulse-scan');
-                    scannerLaser.style.display = 'none';    
-                    faceMeshOverlay.style.display = 'none';  
-                    document.getElementById('scanBrandHeader').style.display = 'none';
-                    document.querySelectorAll('.icon-item').forEach(i => i.classList.remove('active-scan'));
-
-                    document.body.classList.remove('focus-mode');
+            const fill = document.getElementById('progressFill');
+            const loaderText = document.getElementById('loaderText');
+            fill.style.width = '0%';
+            loaderText.textContent = 'Preparando a foto para pesquisa...';
+            let progress = 0;
+            scanProgressInterval = setInterval(() => {
+                progress = Math.min(100, progress + 2);
+                fill.style.width = progress + '%';
+                atualizarVarreduraProgressiva(progress);
+                if (progress === 100) {
+                    limparEscaneamento();
                     document.getElementById('heroSection').style.display = 'none';
-                    document.getElementById('scanLoader').style.display = 'none';
-
+                    document.body.classList.remove('focus-mode');
                     exibirPreviaBloqueada();
-                } else {
-                    width += incrementoPorTick;
-                    if (width > 100) width = 100;
-                    fill.style.width = width + '%';
-                    loaderText.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> MAPEANDO PONTOS BIOMÉTRICOS (${Math.floor(width)}%)...`;
-                    
-                    atualizarVarreduraProgressiva(width);
                 }
-            }, intervaloTick); 
+            }, 40);
         }
 
-        function exibirPreviaBloqueada() {
+
+        async function exibirPreviaBloqueada() {
+            if (RadarCreatorDemo.requested) {
+                const revision = scanRevision;
+                photoBusy = true;
+                try {
+                    const items = await RadarCreatorDemo.execute();
+                    if (revision === scanRevision) renderizarResultadosReaisAPI(items);
+                } catch (error) {
+                    if (revision === scanRevision) { editarEnquadramento(); mostrarAvisoFoto(error.message); }
+                } finally { if (revision === scanRevision) photoBusy = false; }
+                return;
+            }
+            document.getElementById('resultsTitle').textContent = 'Confira o enquadramento';
             const imgOriginalEnviada = capturarImagemFinalCirculo();
             if (!imgOriginalEnviada) {
                 alert('Imagem inválida. Por favor, carregue uma foto novamente.');
@@ -2350,29 +2413,50 @@
             document.getElementById('resultsSection').style.display = 'block';
 
             const cardHtml = `
-                <div class="result-card-square featured locked" style="border-color: var(--gold);">
+                <div class="result-card-square featured" style="border-color: var(--gold);">
                     <div class="social-gradient-bar" style="background: var(--gold);"></div>
-                    <div class="avatar-match-wrapper">
-                        <span class="match-badge-tag">98.5%</span>
+                    <div class="avatar-match-wrapper" style="width:160px;height:160px;">
+                        <span class="match-badge-tag">Sua foto</span>
                         <img class="result-avatar-img" src="${imgOriginalEnviada}" alt="Perfil">
-                        <div class="lock-badge-overlay"><i class="fa-solid fa-lock"></i> Bloqueado</div>
                     </div>
                     <div class="result-text-details">
                         <div class="network-label-row" style="color: var(--gold);">
-                            <i class="fa-solid fa-globe"></i> Match Biométrico Encontrado
+                            <i class="fa-solid fa-camera"></i> Foto pronta para pesquisa
                         </div>
-                        <div class="username-blur-text">Perfil Público Identificado</div>
+                        <p style="font-size:.85rem; color:var(--text-dim)">A pesquisa ainda não foi realizada. Usará 1 crédito.</p>
                     </div>
                     <button onclick="desbloquearResultadosReais(this)" class="btn-unlock-square" id="btnDesbloquearPrevia">
-                        <i class="fa-solid fa-unlock-keyhole"></i> DESBLOQUEAR RESULTADOS
+                        <i class="fa-solid fa-unlock-keyhole"></i> PESQUISAR COM 1 CRÉDITO
                     </button>
                 </div>
             `;
             container.innerHTML += cardHtml;
+            const adjust = document.createElement('button');
+            adjust.type = 'button';
+            adjust.textContent = 'Ajustar enquadramento';
+            adjust.className = 'btn-modal btn-close';
+            adjust.style.gridColumn = '1 / -1';
+            adjust.onclick = editarEnquadramento;
+            container.appendChild(adjust);
             document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
         }
 
+        function editarEnquadramento() {
+            limparEscaneamento();
+            preparedPhoto = null;
+            searchRequestKey = null;
+            document.body.classList.add('focus-mode');
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('heroSection').style.display = 'block';
+            document.getElementById('scanBtn').style.display = 'inline-flex';
+            document.getElementById('zoomHint').style.display = 'block';
+            mostrarAvisoFoto('');
+            document.getElementById('interactiveContainer').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
         async function desbloquearResultadosReais(botaoElemento) {
+            if (RadarCreatorDemo.requested) return;
+            if (botaoElemento.disabled) return;
             if (!usuarioEmail) {
                 abrirModalLogin();
                 return;
@@ -2384,11 +2468,12 @@
             }
 
             botaoElemento.disabled = true;
-            botaoElemento.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> DESBLOQUEANDO...';
+            botaoElemento.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> PESQUISANDO...';
+            const searchRevision = scanRevision;
 
             try {
                 // 1. Prepara a imagem e executa a busca real no FaceCheck.
-                // O crédito só será descontado depois que a busca terminar com sucesso.
+                // O servidor reserva o crédito e trata a devolução em caso de falha.
                 const imgFinal = capturarImagemFinalCirculo();
 
                 if (!imgFinal) {
@@ -2398,9 +2483,10 @@
                 const blob = dataURItoBlob(imgFinal);
                 const formData = new FormData();
                 formData.append('imagem', blob, 'rosto.jpg');
+                searchRequestKey ||= crypto.randomUUID();
                 const response = await authClient.request('/api/escanear-rosto', {
                     method: 'POST',
-                    headers: { 'Idempotency-Key': crypto.randomUUID() },
+                    headers: { 'Idempotency-Key': searchRequestKey },
                     body: formData
                 });
 
@@ -2412,12 +2498,19 @@
                     throw new Error(`O servidor retornou uma resposta inválida (HTTP ${response.status}).`);
                 }
 
+                if (searchRevision !== scanRevision) return;
+
                 if (data?.creditos !== undefined) {
                     saldoCreditos = Number(data.creditos);
                     atualizarInterfaceSaldo();
                 }
 
                 if (!response.ok || !data.success) {
+                    if (data?.code === 'SEARCH_REFUNDED') searchRequestKey = null;
+                    if (data?.codigo_facecheck === 'IMAGE_ERROR') {
+                        searchRequestKey = null;
+                        throw new Error('A foto não foi reconhecida como um rosto válido. Use Ajustar enquadramento ou escolha uma foto frontal e nítida.');
+                    }
                     const detalhe = data?.detalhe ? `\n\nDetalhe: ${data.detalhe}` : '';
                     const codigo = data?.codigo_facecheck ? `\nCódigo: ${data.codigo_facecheck}` : '';
 
@@ -2443,10 +2536,11 @@
                 renderizarResultadosReaisAPI(listaPerfis);
 
             } catch (err) {
+                if (searchRevision !== scanRevision) return;
                 console.error('Erro na busca biométrica:', err);
 
                 botaoElemento.disabled = false;
-                botaoElemento.innerHTML = '<i class="fa-solid fa-unlock-keyhole"></i> DESBLOQUEAR RESULTADOS';
+                botaoElemento.innerHTML = '<i class="fa-solid fa-unlock-keyhole"></i> PESQUISAR COM 1 CRÉDITO';
 
                 alert(
                     err?.message ||
@@ -2599,6 +2693,7 @@
         }
 
         function renderizarResultadosReaisAPI(itens) {
+            document.getElementById('resultsTitle').textContent = 'Resultados da pesquisa';
             const imgOriginalEnviada = capturarImagemFinalCirculo();
             const container = document.getElementById('resultsGridContainer');
             container.innerHTML = '';
@@ -2650,7 +2745,7 @@
                 const match = document.createElement('span');
                 match.className = 'match-badge-tag';
                 match.textContent = precisao === '--' ? 'Match' : `${precisao}%`;
-                avatarWrapper.appendChild(match);
+                if (precisao !== '--') avatarWrapper.appendChild(match);
 
                 const avatar = document.createElement('img');
                 avatar.className = 'result-avatar-img';
@@ -2902,6 +2997,7 @@
         ========================================================= */
 
         function abrirPainelAfiliados() {
+            if (RadarCreatorDemo.enabled()) { location.assign('/painel'); return; }
             if (!usuarioEhAdmin) return;
 
             const modal = document.getElementById('modalAfiliadosAdmin');

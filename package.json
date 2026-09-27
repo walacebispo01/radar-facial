@@ -9,13 +9,17 @@
     "test:db": "node scripts/test-db.js",
     "migration:status": "node scripts/check-migration.js",
     "migrate:sessions": "node scripts/migrate-sessions.js",
-    "check": "node --check server.js && node --check lib/auth.js && node --check lib/database.js && node --check lib/google-auth.js && node --check lib/postgres-store.js && node --check lib/session-store.js && node --check public/auth.js && node --check scripts/check-migration.js && node --check scripts/migrate-sessions.js && node --check scripts/test-db.js"
+    "check": "node --check server.js && node --check lib/auth.js && node --check lib/database.js && node --check lib/google-auth.js && node --check lib/postgres-store.js && node --check lib/session-store.js && node --check public/auth.js && node --check scripts/check-migration.js && node --check scripts/migrate-sessions.js && node --check scripts/test-db.js && node --check lib/photo-assets.js && node scripts/check-frontend.js && node --check lib/creator-store.js && node --check lib/commission-program.js && node --check lib/program-security.js && node --check lib/program-routes.js && node --check public/creator-panel.js && node --check public/creator-demo.js && node --check scripts/migrate-creators.js",
+    "test:browser": "node scripts/test-photo-browser.js",
+    "test:browser:programa": "node scripts/test-creator-panel-browser.js && node scripts/test-creator-demo-browser.js",
+    "migrate:creators": "node scripts/migrate-creators.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@mediapipe/tasks-vision": "1.0.1",
     "axios": "^1.20.0",
     "cors": "^2.8.6",
     "dotenv": "^18.0.1",
@@ -26,6 +30,7 @@
     "pg": "^8.23.0"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.8"
+    "@electric-sql/pglite": "^0.5.8",
+    "playwright": "1.62.1"
   }
 }
