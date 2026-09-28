@@ -1471,7 +1471,6 @@
         .simulation-creator-btn { border-color:rgba(96,165,250,.4); background:rgba(96,165,250,.1); color:#93c5fd; }
         .simulation-links-form { display:grid; gap:10px; margin:18px 0; }
         .simulation-link-help { color:var(--text-dim); font-size:.74rem; line-height:1.45; }
-        .simulation-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 8px; border:1px solid rgba(96,165,250,.4); border-radius:999px; background:rgba(59,130,246,.12); color:#93c5fd; font-size:.68rem; font-weight:900; letter-spacing:.04em; text-transform:uppercase; }
         .simulation-network-preview { width:118px; height:118px; display:grid; place-items:center; border-radius:50%; color:var(--social-color); background:radial-gradient(circle,rgba(255,255,255,.09),rgba(255,255,255,.025)); border:2px solid color-mix(in srgb,var(--social-color) 55%,transparent); font-size:3rem; }
         .simulation-url-text { overflow-wrap:anywhere; word-break:break-word; }
         @media (max-width:600px) {
@@ -2770,7 +2769,7 @@
             } catch (_) { return null; }
             const rede = detectarRedeSocial(urlValida.href);
             const card = document.createElement('div');
-            card.className = 'result-card-square social-result-card simulation-result-card';
+            card.className = 'result-card-square social-result-card';
             card.style.setProperty('--social-color', rede.cor);
             card.style.setProperty('--social-color-2', rede.cor2);
 
@@ -2778,14 +2777,11 @@
             barra.className = 'social-gradient-bar';
             const avatarWrapper = document.createElement('div');
             avatarWrapper.className = 'avatar-match-wrapper';
-            const badge = document.createElement('span');
-            badge.className = 'simulation-badge';
-            badge.innerHTML = '<i class="fa-solid fa-flask"></i> Simulação';
             const preview = document.createElement('div');
             preview.className = 'simulation-network-preview';
             preview.setAttribute('aria-hidden', 'true');
             preview.appendChild(criarIconeRede(rede));
-            avatarWrapper.append(badge, preview);
+            avatarWrapper.appendChild(preview);
 
             const detalhes = document.createElement('div');
             detalhes.className = 'result-text-details';
@@ -3180,9 +3176,9 @@
             fecharModoSimulacao();
             cancelarModoFoco();
             document.body.classList.add('simulation-mode');
-            document.getElementById('investigatorBadge').innerHTML = '<i class="fa-solid fa-flask"></i> Modo Simulação · Demonstração';
-            document.getElementById('scanBtn').innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> INICIAR DEMONSTRAÇÃO';
-            mostrarAvisoFoto('Modo Simulação ativo: escolha uma foto. Nenhuma busca real ou cobrança será realizada.');
+            document.getElementById('investigatorBadge').innerHTML = '<i class="fa-solid fa-flask"></i> Modo demonstração';
+            document.getElementById('scanBtn').innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> PROCURAR RESULTADOS';
+            mostrarAvisoFoto('Escolha uma foto para continuar.');
             document.getElementById('heroSection').style.display = 'block';
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
@@ -3205,7 +3201,7 @@
                 });
                 const data = await res.json();
                 if (!res.ok || !data.success || data.simulado !== true) {
-                    throw new Error(data.error || 'Não foi possível executar a demonstração.');
+                    throw new Error(data.error || 'Não foi possível processar a imagem.');
                 }
                 if (revision !== scanRevision || !modoSimulacaoAtivo) return;
                 linksSimulacao = Array.isArray(data.links) ? data.links.slice(0, 2) : [];
@@ -3213,7 +3209,7 @@
             } catch (error) {
                 if (revision === scanRevision) {
                     editarEnquadramento();
-                    mostrarAvisoFoto(error.message || 'Não foi possível executar a demonstração.');
+                    mostrarAvisoFoto(error.message || 'Não foi possível processar a imagem.');
                 }
             } finally {
                 if (revision === scanRevision) photoBusy = false;
@@ -3221,7 +3217,7 @@
         }
 
         function renderizarResultadosSimulados(links) {
-            document.getElementById('resultsTitle').textContent = 'Simulação · Resultados de demonstração';
+            document.getElementById('resultsTitle').textContent = 'Resultados da pesquisa';
             const container = document.getElementById('resultsGridContainer');
             container.replaceChildren();
             document.getElementById('resultsSection').style.display = 'block';
@@ -3232,7 +3228,7 @@
             if (!container.childElementCount) {
                 const vazio = document.createElement('div');
                 vazio.style.cssText = 'grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)';
-                vazio.innerHTML = '<span class="simulation-badge"><i class="fa-solid fa-flask"></i> Demonstração</span><p style="margin-top:14px">Nenhum link foi cadastrado para esta simulação.</p>';
+                vazio.innerHTML = '<p style="margin-top:14px">Nenhum resultado encontrado.</p>';
                 container.appendChild(vazio);
             }
             document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });

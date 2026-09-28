@@ -5,13 +5,15 @@ const path = require('node:path');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
-test('cards de simulação são identificados em um renderizador separado', () => {
+test('cards do fluxo interno mantêm a aparência normal e a identificação fica fora dos resultados', () => {
     const simulationPosition = html.indexOf('function renderizarResultadosSimulados');
     const normalPosition = html.indexOf('function renderizarResultadosReaisAPI');
     assert.ok(simulationPosition > 0);
     assert.ok(normalPosition > 0);
-    assert.match(html, /simulation-badge[^>]*>[\s\S]*?Simulação/);
-    assert.match(html, /Simulação · Resultados de demonstração/);
+    const simulationRenderer = html.slice(simulationPosition, html.indexOf('async function carregarCriadoresSimulacaoAdmin', simulationPosition));
+    assert.doesNotMatch(simulationRenderer, /Simulação|Resultado simulado|Demonstração/i);
+    assert.match(html, /Modo demonstração/);
+    assert.equal((html.match(/Modo demonstração/g) || []).length, 1);
 });
 
 test('fluxo simulado é separado antes do endpoint de pesquisa real', () => {
