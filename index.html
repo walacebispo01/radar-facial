@@ -3183,7 +3183,7 @@
                     const row = document.createElement('div'); row.className = 'simulation-admin-row';
                     const info = document.createElement('div'); info.className = 'simulation-admin-email';
                     const totalLinks = Array.isArray(criador.links) ? criador.links.length : 0;
-                    info.innerHTML = `<strong>${escaparHtml(criador.email)}</strong><br><small style="color:var(--text-dim)">${totalLinks}/2 link(s) cadastrado(s)</small>`;
+                    info.innerHTML = `<strong>${escaparHtmlAfiliado(criador.email)}</strong><br><small style="color:var(--text-dim)">${totalLinks}/2 link(s) cadastrado(s)</small>`;
                     const remover = document.createElement('button'); remover.className = 'simulation-remove-btn'; remover.type = 'button';
                     remover.innerHTML = '<i class="fa-solid fa-user-minus"></i> Remover'; remover.onclick = () => removerCriadorSimulacao(criador.email);
                     row.append(info, remover); lista.appendChild(row);
