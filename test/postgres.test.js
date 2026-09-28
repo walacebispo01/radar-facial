@@ -259,7 +259,9 @@ test('Persistência PostgreSQL com o schema exato, em memória', async t => {
         };
         const verifyGoogle = async credential => credential === 'admin'
             ? { email: 'admin@example.test', sub: 'admin-sub' }
-            : credential === 'user' ? { email: 'http@example.test', sub: 'user-sub' } : null;
+            : credential === 'user' ? { email: 'http@example.test', sub: 'user-sub' }
+            : credential === 'creator' ? { email: 'creator@example.test', sub: 'creator-sub' }
+            : credential === 'other' ? { email: 'other@example.test', sub: 'other-sub' } : null;
         const app = createApp({ store, sessions: createSessionStore(pool), payment, verifyGoogle,
             appOrigin: 'https://radarfacial.com.br' });
         const server = app.listen(0, '127.0.0.1');
@@ -297,6 +299,40 @@ test('Persistência PostgreSQL com o schema exato, em memória', async t => {
             assert.equal((await post('/api/admin/afiliados/listar', {}, admin,
                 { origin: 'https://evil.example' })).status, 403);
             assert.equal((await post('/api/admin/afiliados/listar', {}, { ...admin, csrfToken: 'A'.repeat(43) })).status, 403);
+
+            // Somente ADMIN_EMAILS autoriza; cada criador só lê e altera os próprios links.
+            assert.equal((await post('/api/admin/simulacao/autorizar', { email: 'creator@example.test' }, user)).status, 403);
+            assert.equal((await post('/api/simulacao/perfil', {}, user)).status, 403);
+            const authorized = await post('/api/admin/simulacao/autorizar', { email: 'Creator@Example.Test' }, admin);
+            assert.equal(authorized.status, 200);
+            assert.equal(authorized.body.criador.email, 'creator@example.test');
+            const creator = await login('creator');
+            const other = await login('other');
+            const savedLinks = await post('/api/simulacao/links', { links: [
+                'https://instagram.com/creator', 'https://www.youtube.com/@creator'
+            ] }, creator);
+            assert.equal(savedLinks.status, 200);
+            assert.deepEqual(savedLinks.body.links, [
+                'https://instagram.com/creator', 'https://www.youtube.com/@creator'
+            ]);
+            assert.equal((await post('/api/simulacao/links', { links: [
+                'https://instagram.com/1', 'https://x.com/2', 'https://tiktok.com/@3'
+            ] }, creator)).status, 400);
+            assert.equal((await post('/api/simulacao/links', {
+                email: 'creator@example.test', links: ['https://facebook.com/invasor']
+            }, other)).status, 403);
+            assert.equal((await post('/api/simulacao/perfil', {}, other)).status, 403);
+            assert.deepEqual((await post('/api/simulacao/perfil', {}, creator)).body.links,
+                ['https://instagram.com/creator', 'https://www.youtube.com/@creator']);
+            const creators = await post('/api/admin/simulacao/listar', {}, admin);
+            assert.equal(creators.status, 200);
+            assert.deepEqual(creators.body.criadores.map(item => item.email), ['creator@example.test']);
+            assert.equal((await post('/api/admin/simulacao/remover', { email: 'creator@example.test' }, admin)).status, 200);
+            assert.equal((await post('/api/simulacao/perfil', {}, creator)).status, 403);
+            await post('/api/admin/simulacao/autorizar', { email: 'creator@example.test' }, admin);
+            assert.deepEqual((await post('/api/simulacao/perfil', {}, creator)).body.links, []);
+            await post('/api/admin/simulacao/remover', { email: 'creator@example.test' }, admin);
+
             const af = (await post('/api/admin/afiliados/criar', { nome: 'HTTP', percentual: 15 }, admin)).body.afiliado;
             assert.equal((await fetch(base + '/api/afiliados/validar/' + af.codigo)).status, 200);
             assert.deepEqual((await post('/api/afiliados/clique', { codigo: af.codigo })).body, { success: true });

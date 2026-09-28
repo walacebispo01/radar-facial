@@ -37,7 +37,8 @@ require('./lib/test-credit').mountTestCredit(app, { auth, store });
 mountProgram(app, { auth, creators: creatorStore, commissions: commissionProgram, security: programSecurity, isAdmin: emailEhAdmin });
 app.get('/api/session', auth.requireSession, auth.session);
 app.post('/api/logout', auth.browserMutation, auth.requireSession, auth.csrf, auth.logout);
-app.use(['/api/descontar-credito', '/api/criar-pix', '/api/verificar-pix', '/api/escanear-rosto', '/api/admin/afiliados'],
+app.use(['/api/descontar-credito', '/api/criar-pix', '/api/verificar-pix', '/api/escanear-rosto',
+    '/api/admin/afiliados', '/api/admin/simulacao', '/api/simulacao'],
     auth.browserMutation, auth.requireSession, auth.csrf);
 if (programSecurity) {
     app.use('/api/admin/afiliados', (req, res, next) => {
@@ -119,6 +120,31 @@ function normalizarCodigoAfiliado(valor) {
 function validarAdminPorSessao(req) {
     const email = req.auth?.email;
     return email && emailEhAdmin(email) ? email : null;
+}
+
+const REDES_SOCIAIS_SIMULACAO = [
+    'instagram.com', 'facebook.com', 'fb.com', 'youtube.com', 'youtu.be',
+    'tiktok.com', 'x.com', 'twitter.com', 'linkedin.com', 'pinterest.com',
+    'pin.it', 'telegram.me', 't.me', 'reddit.com', 'vk.com'
+];
+
+function normalizarEmail(valor) {
+    const email = String(valor || '').toLowerCase().trim();
+    return email.length <= 160 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
+}
+
+function normalizarUrlSocial(valor) {
+    const bruto = String(valor || '').trim();
+    if (!bruto || bruto.length > 2048) throw new StoreError('URL de rede social inválida.', 400);
+    let url;
+    try { url = new URL(bruto); } catch (_) { throw new StoreError('URL de rede social inválida.', 400); }
+    const host = url.hostname.toLowerCase().replace(/^www\./, '');
+    const suportada = REDES_SOCIAIS_SIMULACAO.some(dominio => host === dominio || host.endsWith(`.${dominio}`));
+    if (url.protocol !== 'https:' || url.username || url.password || !suportada) {
+        throw new StoreError('Use uma URL HTTPS válida de uma rede social compatível.', 400);
+    }
+    url.hash = '';
+    return url.href;
 }
 
 // Mantém erros públicos existentes e não expõe detalhes do PostgreSQL.
@@ -203,6 +229,63 @@ app.post('/api/admin/afiliados/pagar', async (req, res) => {
         const result = await store.payAffiliate(normalizarCodigoAfiliado(req.body?.codigo), adminEmail, chaveIdempotencia(req));
         return res.json({ success: true, ...result });
     } catch (error) { return erroAfiliado(res, error, 'Erro ao registrar pagamento do afiliado.'); }
+});
+
+app.post('/api/admin/simulacao/listar', async (req, res) => {
+    try {
+        if (!validarAdminPorSessao(req)) {
+            return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
+        }
+        return res.json({ success: true, criadores: await store.listSimulationCreators() });
+    } catch (error) { return erroAfiliado(res, error, 'Erro ao carregar criadores autorizados.'); }
+});
+
+app.post('/api/admin/simulacao/autorizar', async (req, res) => {
+    try {
+        const adminEmail = validarAdminPorSessao(req);
+        if (!adminEmail) {
+            return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
+        }
+        const email = normalizarEmail(req.body?.email);
+        if (!email) return res.status(400).json({ success: false, error: 'Informe um e-mail válido.' });
+        const criador = await store.authorizeSimulationCreator(email, adminEmail);
+        return res.json({ success: true, criador });
+    } catch (error) { return erroAfiliado(res, error, 'Erro ao autorizar criador.'); }
+});
+
+app.post('/api/admin/simulacao/remover', async (req, res) => {
+    try {
+        if (!validarAdminPorSessao(req)) {
+            return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
+        }
+        const email = normalizarEmail(req.body?.email);
+        if (!email) return res.status(400).json({ success: false, error: 'Informe um e-mail válido.' });
+        const removido = await store.removeSimulationCreator(email);
+        if (!removido) return res.status(404).json({ success: false, error: 'Criador autorizado não encontrado.' });
+        return res.json({ success: true });
+    } catch (error) { return erroAfiliado(res, error, 'Erro ao remover autorização.'); }
+});
+
+app.post('/api/simulacao/perfil', async (req, res) => {
+    try {
+        const perfil = await store.getSimulationProfile(req.auth.email);
+        if (!perfil) return res.status(403).json({ success: false, error: 'Modo Simulação não autorizado.' });
+        return res.json({ success: true, autorizado: true, links: perfil.links });
+    } catch (error) { return erroAfiliado(res, error, 'Erro ao carregar o Modo Simulação.'); }
+});
+
+app.post('/api/simulacao/links', async (req, res) => {
+    try {
+        if (!Array.isArray(req.body?.links) || req.body.links.length > 2) {
+            return res.status(400).json({ success: false, error: 'Cadastre no máximo 2 links.' });
+        }
+        const links = req.body.links.map(normalizarUrlSocial);
+        if (new Set(links).size !== links.length) {
+            return res.status(400).json({ success: false, error: 'Não repita o mesmo link.' });
+        }
+        const perfil = await store.saveSimulationLinks(req.auth.email, links);
+        return res.json({ success: true, autorizado: true, links: perfil.links });
+    } catch (error) { return erroAfiliado(res, error, 'Erro ao salvar os links de simulação.'); }
 });
 
 app.get('/api/afiliados/validar/:codigo', async (req, res) => {

@@ -1460,6 +1460,24 @@
             .affiliate-metrics { grid-template-columns: 1fr 1fr; }
         }
 
+        .simulation-admin-section { padding:16px; border:1px solid rgba(245,158,11,.18); border-radius:16px; background:rgba(245,158,11,.035); margin-bottom:22px; }
+        .simulation-admin-form { display:flex; gap:10px; margin:12px 0; }
+        .simulation-admin-list { display:flex; flex-direction:column; gap:8px; }
+        .simulation-admin-row { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid rgba(255,255,255,.08); border-radius:12px; background:rgba(255,255,255,.03); }
+        .simulation-admin-email { flex:1; min-width:0; overflow-wrap:anywhere; }
+        .simulation-remove-btn { border:1px solid rgba(248,113,113,.3); background:rgba(248,113,113,.08); color:#fca5a5; padding:8px 10px; border-radius:9px; cursor:pointer; }
+        .simulation-creator-btn { border-color:rgba(96,165,250,.4); background:rgba(96,165,250,.1); color:#93c5fd; }
+        .simulation-links-form { display:grid; gap:10px; margin:18px 0; }
+        .simulation-link-help { color:var(--text-dim); font-size:.74rem; line-height:1.45; }
+        .simulation-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 8px; border:1px solid rgba(96,165,250,.4); border-radius:999px; background:rgba(59,130,246,.12); color:#93c5fd; font-size:.68rem; font-weight:900; letter-spacing:.04em; text-transform:uppercase; }
+        .simulation-network-preview { width:118px; height:118px; display:grid; place-items:center; border-radius:50%; color:var(--social-color); background:radial-gradient(circle,rgba(255,255,255,.09),rgba(255,255,255,.025)); border:2px solid color-mix(in srgb,var(--social-color) 55%,transparent); font-size:3rem; }
+        .simulation-url-text { overflow-wrap:anywhere; word-break:break-word; }
+        @media (max-width:600px) {
+            .simulation-admin-form { flex-direction:column; }
+            .simulation-admin-form button { width:100%; }
+            .simulation-network-preview { width:96px; height:96px; font-size:2.5rem; }
+        }
+
 </style>
 </head>
 <body>
@@ -1478,7 +1496,10 @@
                     <i class="fa-solid fa-coins"></i> <span class="credits-badge-label">Saldo:</span> <span id="userCreditsCount">0</span> <span class="credits-badge-label">pesquisas</span>
                 </div>
                 <button class="admin-affiliate-btn" id="adminAffiliateBtn" onclick="abrirPainelAfiliados()">
-                    <i class="fa-solid fa-user-group"></i> Afiliados
+                    <i class="fa-solid fa-shield-halved"></i> Administração
+                </button>
+                <button class="admin-affiliate-btn simulation-creator-btn" id="simulationCreatorBtn" onclick="abrirModoSimulacao()">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Modo Simulação
                 </button>
                 
                 <div id="googleLoginWrapper">
@@ -1741,10 +1762,22 @@
                 <i class="fa-solid fa-xmark"></i>
             </button>
 
-            <h3 style="margin:0 0 6px 0; font-size:1.35rem;">
-                <i class="fa-solid fa-user-group" style="color:var(--gold);"></i>
-                Afiliados
+            <h3 style="margin:0 0 16px 0; font-size:1.35rem;">
+                <i class="fa-solid fa-shield-halved" style="color:var(--gold);"></i> Administração
             </h3>
+
+            <section class="simulation-admin-section">
+                <h4 style="margin:0 0 5px;"><i class="fa-solid fa-wand-magic-sparkles" style="color:#93c5fd;"></i> Modo Simulação</h4>
+                <p class="affiliate-admin-note" style="margin:0;">Autorize criadores pelo e-mail da conta Google. Cada criador poderá cadastrar até 2 links próprios.</p>
+                <div class="simulation-admin-form">
+                    <input class="affiliate-admin-input" id="novoCriadorSimulacaoEmail" type="email" placeholder="E-mail Google do criador">
+                    <button class="affiliate-create-btn" type="button" onclick="autorizarCriadorSimulacao()"><i class="fa-solid fa-user-plus"></i> Autorizar</button>
+                </div>
+                <div id="simulationAdminStatus" class="affiliate-admin-note">Carregando autorizações...</div>
+                <div id="simulationAdminList" class="simulation-admin-list" style="margin-top:10px;"></div>
+            </section>
+
+            <h4 style="margin:0 0 6px;"><i class="fa-solid fa-user-group" style="color:var(--gold);"></i> Afiliados</h4>
 
             <p class="affiliate-admin-note" style="margin-top:0;">
                 Crie links rastreáveis e escolha 10% ou 15% de comissão.
@@ -1768,6 +1801,20 @@
 
             <div id="affiliateAdminStatus" class="affiliate-admin-note">Carregando afiliados...</div>
             <div class="affiliate-list" id="affiliateAdminList" style="margin-top:12px;"></div>
+        </div>
+    </div>
+
+    <div class="modal" id="modalModoSimulacao">
+        <div class="modal-content-crop" style="max-width:560px; text-align:left;">
+            <button class="modal-close-x" onclick="fecharModoSimulacao()"><i class="fa-solid fa-xmark"></i></button>
+            <h3 style="margin:0 0 6px;"><i class="fa-solid fa-wand-magic-sparkles" style="color:#93c5fd;"></i> Modo Simulação</h3>
+            <p class="simulation-link-help">Cadastre até 2 URLs HTTPS de redes sociais. Elas serão exibidas com a indicação “Simulação” antes dos resultados reais, sem alterar a pesquisa ou o consumo de créditos.</p>
+            <div class="simulation-links-form">
+                <input class="affiliate-admin-input" id="simulationLink1" type="url" inputmode="url" placeholder="https://instagram.com/seu-perfil">
+                <input class="affiliate-admin-input" id="simulationLink2" type="url" inputmode="url" placeholder="https://tiktok.com/@seu-perfil">
+            </div>
+            <div id="simulationCreatorStatus" class="affiliate-admin-note" role="status" aria-live="polite"></div>
+            <button class="affiliate-create-btn" type="button" onclick="salvarLinksSimulacao()" style="margin-top:14px;width:100%;"><i class="fa-solid fa-floppy-disk"></i> Salvar links</button>
         </div>
     </div>
 
@@ -1828,6 +1875,8 @@
         let saldoCreditos = 0;
         let usuarioEmail = null;
         let usuarioEhAdmin = false;
+        let usuarioSimulacaoAutorizado = false;
+        let linksSimulacao = [];
 
         const authClient = window.RadarAuth.createClient({
             onSession: aplicarSessao
@@ -1873,8 +1922,12 @@
                     const modalPlanos = document.getElementById('modalPlanos');
                     const modalPix = document.getElementById('modalPix');
                     const modalFotoNativa = document.getElementById('modalFotoNativa');
+                    const modalAdmin = document.getElementById('modalAfiliadosAdmin');
+                    const modalSimulacao = document.getElementById('modalModoSimulacao');
 
                     if (document.body.classList.contains('drawer-open')) { fecharMenuUsuario(); return; }
+                    if (modalSimulacao.style.display === 'flex') { fecharModoSimulacao(); return; }
+                    if (modalAdmin.style.display === 'flex') { fecharPainelAfiliados(); return; }
                     if (modalFotoNativa.style.display === 'flex') { fecharOpcoesFoto(); return; }
                     if (modalPix.style.display === 'flex') { voltarParaPlanos(); return; }
                     if (modalPlanos.style.display === 'flex') { fecharModalPlanos(); return; }
@@ -1936,6 +1989,13 @@
             document.getElementById('creditsBadge').style.display = usuarioEmail ? 'flex' : 'none';
             document.getElementById('adminAffiliateBtn').style.display = usuarioEhAdmin ? 'inline-flex' : 'none';
             document.getElementById('drawerAdminAffiliateBtn').style.display = usuarioEhAdmin ? 'flex' : 'none';
+            if (!usuarioEmail) {
+                usuarioSimulacaoAutorizado = false;
+                linksSimulacao = [];
+                document.getElementById('simulationCreatorBtn').style.display = 'none';
+            } else {
+                atualizarEstadoSimulacao({ silencioso: true });
+            }
             if (usuarioEmail) {
                 document.getElementById('userEmailDisplay').innerText = usuarioEmail;
                 document.getElementById('userDrawerEmail').innerText = usuarioEmail;
@@ -2533,7 +2593,8 @@
 
                 // 3. O servidor já consumiu exatamente um crédito junto com a busca.
                 // 4. Exibe os resultados reais retornados pelo FaceCheck.
-                renderizarResultadosReaisAPI(listaPerfis);
+                await atualizarEstadoSimulacao({ silencioso: true });
+                renderizarResultadosReaisAPI(listaPerfis, linksSimulacao);
 
             } catch (err) {
                 if (searchRevision !== scanRevision) return;
@@ -2692,7 +2753,55 @@
             return icone;
         }
 
-        function renderizarResultadosReaisAPI(itens) {
+        function criarCardSimulacao(url) {
+            let urlValida;
+            try {
+                urlValida = new URL(url);
+                if (urlValida.protocol !== 'https:') return null;
+            } catch (_) { return null; }
+            const rede = detectarRedeSocial(urlValida.href);
+            const card = document.createElement('div');
+            card.className = 'result-card-square social-result-card simulation-result-card';
+            card.style.setProperty('--social-color', rede.cor);
+            card.style.setProperty('--social-color-2', rede.cor2);
+
+            const barra = document.createElement('div');
+            barra.className = 'social-gradient-bar';
+            const avatarWrapper = document.createElement('div');
+            avatarWrapper.className = 'avatar-match-wrapper';
+            const badge = document.createElement('span');
+            badge.className = 'simulation-badge';
+            badge.innerHTML = '<i class="fa-solid fa-flask"></i> Simulação';
+            const preview = document.createElement('div');
+            preview.className = 'simulation-network-preview';
+            preview.setAttribute('aria-hidden', 'true');
+            preview.appendChild(criarIconeRede(rede));
+            avatarWrapper.append(badge, preview);
+
+            const detalhes = document.createElement('div');
+            detalhes.className = 'result-text-details';
+            const redeLinha = document.createElement('div');
+            redeLinha.className = 'network-label-row';
+            const icone = document.createElement('span');
+            icone.className = 'social-network-icon';
+            icone.appendChild(criarIconeRede(rede));
+            redeLinha.append(icone, document.createTextNode(rede.nome));
+            const textoUrl = document.createElement('div');
+            textoUrl.className = 'username-blur-text simulation-url-text';
+            textoUrl.textContent = `${urlValida.hostname.replace(/^www\./, '')}${urlValida.pathname}${urlValida.search}`;
+            detalhes.append(redeLinha, textoUrl);
+
+            const acesso = document.createElement('a');
+            acesso.className = 'btn-unlock-square social-access-btn';
+            acesso.href = urlValida.href;
+            acesso.target = '_blank';
+            acesso.rel = 'noopener noreferrer';
+            acesso.append(criarIconeRede(rede), document.createTextNode(` ACESSAR ${rede.nome.toUpperCase()}`));
+            card.append(barra, avatarWrapper, detalhes, acesso);
+            return card;
+        }
+
+        function renderizarResultadosReaisAPI(itens, linksManuais = []) {
             document.getElementById('resultsTitle').textContent = 'Resultados da pesquisa';
             const imgOriginalEnviada = capturarImagemFinalCirculo();
             const container = document.getElementById('resultsGridContainer');
@@ -2700,15 +2809,21 @@
             document.getElementById('resultsSection').style.display = 'block';
 
             const perfis = Array.isArray(itens) ? itens : (itens?.items || []);
+            const simulacoes = Array.isArray(linksManuais) ? linksManuais.slice(0, 2) : [];
+            simulacoes.forEach(url => {
+                const card = criarCardSimulacao(url);
+                if (card) container.appendChild(card);
+            });
 
             if (perfis.length === 0) {
-                container.innerHTML = `
+                container.insertAdjacentHTML('beforeend', `
                     <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-dim);">
                         <i class="fa-solid fa-face-frown" style="font-size: 2.5rem; color: var(--gold); margin-bottom: 12px;"></i>
-                        <p style="font-size: 1.1rem; font-weight: 700;">Nenhum perfil correspondente encontrado na base de dados.</p>
-                        <p style="font-size: 0.85rem;">A API não retornou correspondências públicas para esta imagem.</p>
+                        <p style="font-size: 1.1rem; font-weight: 700;">Nenhum resultado real visualmente semelhante foi encontrado.</p>
+                        <p style="font-size: 0.85rem;">A pesquisa não retornou correspondências públicas reais para esta imagem.</p>
                     </div>
-                `;
+                `);
+                document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
                 return;
             }
 
@@ -2993,6 +3108,112 @@
         }
 
         /* =========================================================
+           MODO SIMULAÇÃO
+        ========================================================= */
+        async function atualizarEstadoSimulacao({ silencioso = false } = {}) {
+            const emailConsultado = usuarioEmail;
+            if (!emailConsultado) return false;
+            try {
+                const res = await authClient.request('/api/simulacao/perfil', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+                });
+                const data = await res.json();
+                if (emailConsultado !== usuarioEmail) return false;
+                if (!res.ok || !data.success) {
+                    usuarioSimulacaoAutorizado = false;
+                    linksSimulacao = [];
+                } else {
+                    usuarioSimulacaoAutorizado = data.autorizado === true;
+                    linksSimulacao = Array.isArray(data.links) ? data.links.slice(0, 2) : [];
+                }
+            } catch (error) {
+                if (emailConsultado !== usuarioEmail) return false;
+                usuarioSimulacaoAutorizado = false;
+                linksSimulacao = [];
+                if (!silencioso) alert(error.message || 'Não foi possível carregar o Modo Simulação.');
+            }
+            document.getElementById('simulationCreatorBtn').style.display = usuarioSimulacaoAutorizado ? 'inline-flex' : 'none';
+            return usuarioSimulacaoAutorizado;
+        }
+
+        async function abrirModoSimulacao() {
+            if (!await atualizarEstadoSimulacao()) return;
+            document.getElementById('simulationLink1').value = linksSimulacao[0] || '';
+            document.getElementById('simulationLink2').value = linksSimulacao[1] || '';
+            document.getElementById('simulationCreatorStatus').innerText = 'Somente estes links serão incluídos como demonstração na sua própria conta.';
+            document.getElementById('modalModoSimulacao').style.display = 'flex';
+            document.body.classList.add('modal-open');
+        }
+
+        function fecharModoSimulacao() {
+            document.getElementById('modalModoSimulacao').style.display = 'none';
+            document.body.classList.remove('modal-open');
+        }
+
+        async function salvarLinksSimulacao() {
+            const status = document.getElementById('simulationCreatorStatus');
+            const links = [document.getElementById('simulationLink1').value.trim(), document.getElementById('simulationLink2').value.trim()].filter(Boolean);
+            status.innerText = 'Salvando...';
+            try {
+                const res = await authClient.request('/api/simulacao/links', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ links })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    if (res.status === 403) await atualizarEstadoSimulacao({ silencioso: true });
+                    throw new Error(data.error || 'Erro ao salvar os links.');
+                }
+                linksSimulacao = Array.isArray(data.links) ? data.links.slice(0, 2) : [];
+                status.innerText = 'Links salvos. Eles aparecerão identificados como Simulação na próxima pesquisa.';
+            } catch (error) { status.innerText = error.message || 'Não foi possível salvar os links.'; }
+        }
+
+        async function carregarCriadoresSimulacaoAdmin() {
+            const status = document.getElementById('simulationAdminStatus');
+            const lista = document.getElementById('simulationAdminList');
+            status.innerText = 'Carregando autorizações...';
+            lista.innerHTML = '';
+            try {
+                const res = await authClient.request('/api/admin/simulacao/listar', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+                const data = await res.json();
+                if (!res.ok || !data.success) throw new Error(data.error || 'Erro ao carregar autorizações.');
+                const criadores = Array.isArray(data.criadores) ? data.criadores : [];
+                status.innerText = criadores.length ? `${criadores.length} criador(es) autorizado(s).` : 'Nenhum criador autorizado.';
+                criadores.forEach(criador => {
+                    const row = document.createElement('div'); row.className = 'simulation-admin-row';
+                    const info = document.createElement('div'); info.className = 'simulation-admin-email';
+                    const totalLinks = Array.isArray(criador.links) ? criador.links.length : 0;
+                    info.innerHTML = `<strong>${escaparHtml(criador.email)}</strong><br><small style="color:var(--text-dim)">${totalLinks}/2 link(s) cadastrado(s)</small>`;
+                    const remover = document.createElement('button'); remover.className = 'simulation-remove-btn'; remover.type = 'button';
+                    remover.innerHTML = '<i class="fa-solid fa-user-minus"></i> Remover'; remover.onclick = () => removerCriadorSimulacao(criador.email);
+                    row.append(info, remover); lista.appendChild(row);
+                });
+            } catch (error) { status.innerText = error.message || 'Não foi possível carregar autorizações.'; }
+        }
+
+        async function autorizarCriadorSimulacao() {
+            const input = document.getElementById('novoCriadorSimulacaoEmail');
+            const email = input.value.trim();
+            if (!email) { input.focus(); return; }
+            try {
+                const res = await authClient.request('/api/admin/simulacao/autorizar', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ email }) });
+                const data = await res.json();
+                if (!res.ok || !data.success) throw new Error(data.error || 'Erro ao autorizar criador.');
+                input.value = ''; await carregarCriadoresSimulacaoAdmin();
+            } catch (error) { alert(error.message || 'Não foi possível autorizar o criador.'); }
+        }
+
+        async function removerCriadorSimulacao(email) {
+            if (!confirm(`Remover o acesso ao Modo Simulação de ${email}? Os links cadastrados serão apagados.`)) return;
+            try {
+                const res = await authClient.request('/api/admin/simulacao/remover', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ email }) });
+                const data = await res.json();
+                if (!res.ok || !data.success) throw new Error(data.error || 'Erro ao remover autorização.');
+                await carregarCriadoresSimulacaoAdmin();
+            } catch (error) { alert(error.message || 'Não foi possível remover a autorização.'); }
+        }
+
+        /* =========================================================
            AFILIADOS - ADMIN
         ========================================================= */
 
@@ -3003,6 +3224,7 @@
             const modal = document.getElementById('modalAfiliadosAdmin');
             modal.style.display = 'flex';
             document.body.classList.add('modal-open');
+            carregarCriadoresSimulacaoAdmin();
             carregarAfiliadosAdmin();
         }
 
