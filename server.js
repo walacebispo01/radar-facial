@@ -274,6 +274,14 @@ app.post('/api/simulacao/perfil', async (req, res) => {
     } catch (error) { return erroAfiliado(res, error, 'Erro ao carregar o Modo Simulação.'); }
 });
 
+app.post('/api/simulacao/executar', async (req, res) => {
+    try {
+        const perfil = await store.getSimulationProfile(req.auth.email);
+        if (!perfil) return res.status(403).json({ success: false, error: 'Modo Simulação não autorizado.' });
+        return res.json({ success: true, simulado: true, links: perfil.links.slice(0, 2) });
+    } catch (error) { return erroAfiliado(res, error, 'Erro ao executar o Modo Simulação.'); }
+});
+
 app.post('/api/simulacao/links', async (req, res) => {
     try {
         if (!Array.isArray(req.body?.links) || req.body.links.length > 2) {

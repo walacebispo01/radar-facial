@@ -1217,7 +1217,9 @@
             .logo { gap: 8px; font-size: 1.12rem; min-width: 0; }
             .logo-icon { width: 38px; height: 38px; border-radius: 10px; font-size: 1.05rem; flex: 0 0 38px; }
             .header-right { gap: 7px; min-width: 0; }
-            .admin-affiliate-btn { display: none !important; }
+            .admin-affiliate-btn:not(.simulation-creator-btn) { display: none !important; }
+            .simulation-creator-btn { padding:8px 10px; flex:0 0 40px; width:40px; height:40px; justify-content:center; }
+            .simulation-creator-btn span { display:none; }
             .credits-badge { padding: 8px 10px; font-size: 0.76rem; gap: 5px; white-space: nowrap; }
             .credits-badge-label { display: none; }
             .user-profile-badge { width: 40px; height: 40px; padding: 0; justify-content: center; flex: 0 0 40px; }
@@ -1498,8 +1500,8 @@
                 <button class="admin-affiliate-btn" id="adminAffiliateBtn" onclick="abrirPainelAfiliados()">
                     <i class="fa-solid fa-shield-halved"></i> Administração
                 </button>
-                <button class="admin-affiliate-btn simulation-creator-btn" id="simulationCreatorBtn" onclick="abrirModoSimulacao()">
-                    <i class="fa-solid fa-wand-magic-sparkles"></i> Modo Simulação
+                <button class="admin-affiliate-btn simulation-creator-btn" id="simulationCreatorBtn" onclick="abrirModoSimulacao()" title="Modo Simulação" aria-label="Abrir Modo Simulação">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> <span>Modo Simulação</span>
                 </button>
                 
                 <div id="googleLoginWrapper">
@@ -1530,7 +1532,7 @@
                 <span>radar facial</span>
             </a>
 
-            <div class="investigator-badge">
+            <div class="investigator-badge" id="investigatorBadge">
                 <i class="fa-solid fa-shield-halved"></i> Investigador Biométrico AI
             </div>
 
@@ -1808,13 +1810,13 @@
         <div class="modal-content-crop" style="max-width:560px; text-align:left;">
             <button class="modal-close-x" onclick="fecharModoSimulacao()"><i class="fa-solid fa-xmark"></i></button>
             <h3 style="margin:0 0 6px;"><i class="fa-solid fa-wand-magic-sparkles" style="color:#93c5fd;"></i> Modo Simulação</h3>
-            <p class="simulation-link-help">Cadastre até 2 URLs HTTPS de redes sociais. Elas serão exibidas com a indicação “Simulação” antes dos resultados reais, sem alterar a pesquisa ou o consumo de créditos.</p>
+            <p class="simulation-link-help">Cadastre até 2 URLs HTTPS de redes sociais para sua demonstração. Este modo é 100% interno: não realiza busca facial e não consome crédito.</p>
             <div class="simulation-links-form">
                 <input class="affiliate-admin-input" id="simulationLink1" type="url" inputmode="url" placeholder="https://instagram.com/seu-perfil">
                 <input class="affiliate-admin-input" id="simulationLink2" type="url" inputmode="url" placeholder="https://tiktok.com/@seu-perfil">
             </div>
             <div id="simulationCreatorStatus" class="affiliate-admin-note" role="status" aria-live="polite"></div>
-            <button class="affiliate-create-btn" type="button" onclick="salvarLinksSimulacao()" style="margin-top:14px;width:100%;"><i class="fa-solid fa-floppy-disk"></i> Salvar links</button>
+            <button class="affiliate-create-btn" type="button" onclick="iniciarModoSimulacao()" style="margin-top:14px;width:100%;"><i class="fa-solid fa-camera"></i> Salvar e escolher foto</button>
         </div>
     </div>
 
@@ -1877,6 +1879,7 @@
         let usuarioEhAdmin = false;
         let usuarioSimulacaoAutorizado = false;
         let linksSimulacao = [];
+        let modoSimulacaoAtivo = false;
 
         const authClient = window.RadarAuth.createClient({
             onSession: aplicarSessao
@@ -1912,6 +1915,7 @@
             document.getElementById('heroSection').style.display = 'block';
             
             cancelarModoFoco();
+            encerrarModoSimulacao();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
@@ -1992,6 +1996,7 @@
             if (!usuarioEmail) {
                 usuarioSimulacaoAutorizado = false;
                 linksSimulacao = [];
+                encerrarModoSimulacao();
                 document.getElementById('simulationCreatorBtn').style.display = 'none';
             } else {
                 atualizarEstadoSimulacao({ silencioso: true });
@@ -2442,7 +2447,8 @@
                     limparEscaneamento();
                     document.getElementById('heroSection').style.display = 'none';
                     document.body.classList.remove('focus-mode');
-                    exibirPreviaBloqueada();
+                    if (modoSimulacaoAtivo) executarFluxoSimulacaoLocal();
+                    else exibirPreviaBloqueada();
                 }
             }, 40);
         }
@@ -2516,6 +2522,10 @@
 
         async function desbloquearResultadosReais(botaoElemento) {
             if (RadarCreatorDemo.requested) return;
+            if (modoSimulacaoAtivo) {
+                await executarFluxoSimulacaoLocal();
+                return;
+            }
             if (botaoElemento.disabled) return;
             if (!usuarioEmail) {
                 abrirModalLogin();
@@ -2593,8 +2603,7 @@
 
                 // 3. O servidor já consumiu exatamente um crédito junto com a busca.
                 // 4. Exibe os resultados reais retornados pelo FaceCheck.
-                await atualizarEstadoSimulacao({ silencioso: true });
-                renderizarResultadosReaisAPI(listaPerfis, linksSimulacao);
+                renderizarResultadosReaisAPI(listaPerfis);
 
             } catch (err) {
                 if (searchRevision !== scanRevision) return;
@@ -2801,7 +2810,7 @@
             return card;
         }
 
-        function renderizarResultadosReaisAPI(itens, linksManuais = []) {
+        function renderizarResultadosReaisAPI(itens) {
             document.getElementById('resultsTitle').textContent = 'Resultados da pesquisa';
             const imgOriginalEnviada = capturarImagemFinalCirculo();
             const container = document.getElementById('resultsGridContainer');
@@ -2809,11 +2818,6 @@
             document.getElementById('resultsSection').style.display = 'block';
 
             const perfis = Array.isArray(itens) ? itens : (itens?.items || []);
-            const simulacoes = Array.isArray(linksManuais) ? linksManuais.slice(0, 2) : [];
-            simulacoes.forEach(url => {
-                const card = criarCardSimulacao(url);
-                if (card) container.appendChild(card);
-            });
 
             if (perfis.length === 0) {
                 container.insertAdjacentHTML('beforeend', `
@@ -3122,6 +3126,7 @@
                 if (!res.ok || !data.success) {
                     usuarioSimulacaoAutorizado = false;
                     linksSimulacao = [];
+                    encerrarModoSimulacao();
                 } else {
                     usuarioSimulacaoAutorizado = data.autorizado === true;
                     linksSimulacao = Array.isArray(data.links) ? data.links.slice(0, 2) : [];
@@ -3140,7 +3145,7 @@
             if (!await atualizarEstadoSimulacao()) return;
             document.getElementById('simulationLink1').value = linksSimulacao[0] || '';
             document.getElementById('simulationLink2').value = linksSimulacao[1] || '';
-            document.getElementById('simulationCreatorStatus').innerText = 'Somente estes links serão incluídos como demonstração na sua própria conta.';
+            document.getElementById('simulationCreatorStatus').innerText = 'Somente estes links serão clicáveis na demonstração. Nenhum crédito será consumido.';
             document.getElementById('modalModoSimulacao').style.display = 'flex';
             document.body.classList.add('modal-open');
         }
@@ -3164,8 +3169,73 @@
                     throw new Error(data.error || 'Erro ao salvar os links.');
                 }
                 linksSimulacao = Array.isArray(data.links) ? data.links.slice(0, 2) : [];
-                status.innerText = 'Links salvos. Eles aparecerão identificados como Simulação na próxima pesquisa.';
-            } catch (error) { status.innerText = error.message || 'Não foi possível salvar os links.'; }
+                status.innerText = 'Links salvos.';
+                return true;
+            } catch (error) { status.innerText = error.message || 'Não foi possível salvar os links.'; return false; }
+        }
+
+        async function iniciarModoSimulacao() {
+            if (!await salvarLinksSimulacao()) return;
+            modoSimulacaoAtivo = true;
+            fecharModoSimulacao();
+            cancelarModoFoco();
+            document.body.classList.add('simulation-mode');
+            document.getElementById('investigatorBadge').innerHTML = '<i class="fa-solid fa-flask"></i> Modo Simulação · Demonstração';
+            document.getElementById('scanBtn').innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> INICIAR DEMONSTRAÇÃO';
+            mostrarAvisoFoto('Modo Simulação ativo: escolha uma foto. Nenhuma busca real ou cobrança será realizada.');
+            document.getElementById('heroSection').style.display = 'block';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function encerrarModoSimulacao() {
+            modoSimulacaoAtivo = false;
+            document.body.classList.remove('simulation-mode');
+            const badge = document.getElementById('investigatorBadge');
+            if (badge) badge.innerHTML = '<i class="fa-solid fa-shield-halved"></i> Investigador Biométrico AI';
+            const botao = document.getElementById('scanBtn');
+            if (botao) botao.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> PROCURAR RESULTADOS';
+        }
+
+        async function executarFluxoSimulacaoLocal() {
+            const revision = scanRevision;
+            photoBusy = true;
+            try {
+                const res = await authClient.request('/api/simulacao/executar', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success || data.simulado !== true) {
+                    throw new Error(data.error || 'Não foi possível executar a demonstração.');
+                }
+                if (revision !== scanRevision || !modoSimulacaoAtivo) return;
+                linksSimulacao = Array.isArray(data.links) ? data.links.slice(0, 2) : [];
+                renderizarResultadosSimulados(linksSimulacao);
+            } catch (error) {
+                if (revision === scanRevision) {
+                    editarEnquadramento();
+                    mostrarAvisoFoto(error.message || 'Não foi possível executar a demonstração.');
+                }
+            } finally {
+                if (revision === scanRevision) photoBusy = false;
+            }
+        }
+
+        function renderizarResultadosSimulados(links) {
+            document.getElementById('resultsTitle').textContent = 'Simulação · Resultados de demonstração';
+            const container = document.getElementById('resultsGridContainer');
+            container.replaceChildren();
+            document.getElementById('resultsSection').style.display = 'block';
+            (Array.isArray(links) ? links.slice(0, 2) : []).forEach(url => {
+                const card = criarCardSimulacao(url);
+                if (card) container.appendChild(card);
+            });
+            if (!container.childElementCount) {
+                const vazio = document.createElement('div');
+                vazio.style.cssText = 'grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)';
+                vazio.innerHTML = '<span class="simulation-badge"><i class="fa-solid fa-flask"></i> Demonstração</span><p style="margin-top:14px">Nenhum link foi cadastrado para esta simulação.</p>';
+                container.appendChild(vazio);
+            }
+            document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
         }
 
         async function carregarCriadoresSimulacaoAdmin() {

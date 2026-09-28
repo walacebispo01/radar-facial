@@ -324,6 +324,25 @@ test('Persistência PostgreSQL com o schema exato, em memória', async t => {
             assert.equal((await post('/api/simulacao/perfil', {}, other)).status, 403);
             assert.deepEqual((await post('/api/simulacao/perfil', {}, creator)).body.links,
                 ['https://instagram.com/creator', 'https://www.youtube.com/@creator']);
+            assert.equal((await post('/api/simulacao/executar', {}, other)).status, 403);
+            const creditosAntesSimulacao = await store.login(creator.email);
+            const originalAxiosSimulation = axios.post;
+            let chamadasFaceCheckNaSimulacao = 0;
+            try {
+                axios.post = async () => {
+                    chamadasFaceCheckNaSimulacao++;
+                    throw new Error('FaceCheck não pode ser chamado no Modo Simulação');
+                };
+                const simulation = await post('/api/simulacao/executar', {}, creator);
+                assert.equal(simulation.status, 200);
+                assert.equal(simulation.body.simulado, true);
+                assert.deepEqual(simulation.body.links,
+                    ['https://instagram.com/creator', 'https://www.youtube.com/@creator']);
+            } finally {
+                axios.post = originalAxiosSimulation;
+            }
+            assert.equal(chamadasFaceCheckNaSimulacao, 0);
+            assert.equal(await store.login(creator.email), creditosAntesSimulacao);
             const creators = await post('/api/admin/simulacao/listar', {}, admin);
             assert.equal(creators.status, 200);
             assert.deepEqual(creators.body.criadores.map(item => item.email), ['creator@example.test']);
@@ -385,12 +404,17 @@ test('Persistência PostgreSQL com o schema exato, em memória', async t => {
                 assert.equal(await store.login(user.email), 1);
                 assert.equal((await scan('scan-http-failure')).status, 409);
 
-                axios.post = async url => url.endsWith('/api/upload_pic')
-                    ? { status: 200, data: { id_search: 'search-http-1' } }
-                    : { status: 200, data: { output: { items: [] }, progress: 100 } };
+                let chamadasFaceCheckNoModoNormal = 0;
+                axios.post = async url => {
+                    chamadasFaceCheckNoModoNormal++;
+                    return url.endsWith('/api/upload_pic')
+                        ? { status: 200, data: { id_search: 'search-http-1' } }
+                        : { status: 200, data: { output: { items: [] }, progress: 100 } };
+                };
                 const successfulScan = await scan('scan-http-success');
                 assert.equal(successfulScan.status, 200);
                 assert.equal(successfulScan.body.creditos, 0);
+                assert.equal(chamadasFaceCheckNoModoNormal, 2);
                 axios.post = async () => { throw new Error('não deveria repetir chamada externa'); };
                 const replay = await scan('scan-http-success');
                 assert.equal(replay.status, 200);
