@@ -21,5 +21,6 @@ test('frontend exibe valores unitários e envia somente o identificador do pacot
     }
     assert.match(html, /JSON\.stringify\(\{ pacote: idPacote \}\)/);
     assert.doesNotMatch(html, /JSON\.stringify\(\{ valor: valor, plano: nomePacote, creditos: qtdCreditos \}\)/);
-    assert.match(html, /scroll-snap-type:x mandatory/);
+    assert.match(html, /grid-template-columns:repeat\(2, minmax\(0, 1fr\)\)/);
+    assert.match(html, /\.pricing-modal \{[\s\S]*?overflow-x:hidden;[\s\S]*?overflow-y:auto;/);
 });

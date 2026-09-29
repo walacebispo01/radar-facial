@@ -950,21 +950,33 @@
         .plan-choose { width:100%; margin-top:14px; padding:9px 12px; border-radius:100px; background:var(--gold-gradient); color:#000; font-size:.72rem; font-weight:900; }
 
         @media (max-width:760px) {
-            .pricing-modal { width:calc(100% - 18px) !important; padding:26px 16px 22px; overflow:hidden; }
-            .plans-grid {
-                display:flex;
-                gap:12px;
-                overflow-x:auto;
-                overflow-y:hidden;
-                scroll-snap-type:x mandatory;
-                overscroll-behavior-x:contain;
-                -webkit-overflow-scrolling:touch;
-                scrollbar-width:none;
-                margin:20px -16px 16px;
-                padding:8px 16px 16px;
+            .pricing-modal {
+                width:calc(100% - 18px) !important;
+                max-height:calc(100dvh - 18px);
+                padding:26px 14px 20px;
+                overflow-x:hidden;
+                overflow-y:auto;
             }
-            .plans-grid::-webkit-scrollbar { display:none; }
-            .plan-card { flex:0 0:min(78vw, 290px); scroll-snap-align:start; min-height:235px; }
+            .plans-grid {
+                display:grid;
+                grid-template-columns:repeat(2, minmax(0, 1fr));
+                gap:12px;
+                width:100%;
+                margin:20px 0 16px;
+                padding:8px 0 0;
+                overflow:visible;
+            }
+            .plan-card {
+                width:100%;
+                min-width:0;
+                min-height:220px;
+                padding:20px 8px 14px;
+            }
+            .plan-title { margin-bottom:10px; }
+            .plan-price { font-size:clamp(1.25rem, 6.2vw, 1.55rem); margin:15px 0 7px; }
+            .plan-unit-price { font-size:.68rem; padding-top:16px; white-space:nowrap; }
+            .plan-choose { padding:8px 6px; }
+            .plan-badge { top:-8px; right:8px; font-size:.52rem; padding:2px 6px; }
             .plan-card.pro { transform:none; }
             .plan-card.pro:hover { transform:translateY(-2px); }
         }
