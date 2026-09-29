@@ -226,6 +226,10 @@ test("rotas exigem sessão, CSRF, administrador e 2FA; criador não troca identi
     "STEP_UP_REQUIRED",
   );
   assert.equal(
+    (await request(prefix + "/admin/criadores", "GET", admin)).body.code,
+    "STEP_UP_REQUIRED",
+  );
+  assert.equal(
     (
       await request("/api/admin/afiliados/criar", "POST", admin, {
         nome: "Legacy",
@@ -236,6 +240,10 @@ test("rotas exigem sessão, CSRF, administrador e 2FA; criador não troca identi
   );
   assert.equal(
     (await request("/api/admin/simulacao/autorizar", "POST", admin, { email: "creator@example.test" })).body.code,
+    "STEP_UP_REQUIRED",
+  );
+  assert.equal(
+    (await request("/api/admin/simulacao/listar", "POST", admin, {})).body.code,
     "STEP_UP_REQUIRED",
   );
   const code = totp(secret, Math.floor(now / 30000));
@@ -255,6 +263,8 @@ test("rotas exigem sessão, CSRF, administrador e 2FA; criador não troca identi
       .status,
     200,
   );
+  assert.equal((await request(prefix + "/admin/criadores", "GET", admin)).status, 200);
+  assert.equal((await request("/api/admin/simulacao/listar", "POST", admin, {})).status, 200);
   assert.equal(
     (
       await request(prefix + "/admin/criadores", "POST", admin, {

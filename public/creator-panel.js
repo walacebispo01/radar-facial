@@ -2,7 +2,7 @@
   'use strict';
   const $ = selector => document.querySelector(selector);
   const node = (tag, text, className) => { const el = document.createElement(tag); if (text != null) el.textContent = String(text); if (className) el.className = className; return el; };
-  const state = { me: null, commissionPage: 1, creatorPage: 1, networkPage: 1, networkId: '', keys: new Map(), requestVersions: new Map() };
+  const state = { me: null, activeTab: 'commissions', pendingTab: 'commissions', commissionPage: 1, creatorPage: 1, networkPage: 1, networkId: '', keys: new Map(), requestVersions: new Map() };
   const currency = value => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 6 });
   const date = value => value ? new Date(value).toLocaleString('pt-BR') : '—';
   const labels = { ativo: 'Ativo', suspenso: 'Suspenso', approved: 'Aprovado', pending: 'Pendente', refunded: 'Reembolsado', cancelled: 'Cancelado', vendedor: 'Vendedor', indicador: 'Indicador direto', inicial: 'Criador inicial', demais: 'Demais níveis', comissao: 'Comissão', estorno: 'Estorno', partial: 'Parcial', full: 'Integral' };
@@ -140,13 +140,15 @@
   }
   async function activate(tab) {
     if (!state.me || (tab === 'creators' && !state.me.isAdmin) || (tab === 'scenarios' && !(state.me.creator?.demo_enabled && state.me.creator.status === 'ativo'))) return;
+    if (state.me.isAdmin && !state.me.adminStepUp) { state.pendingTab = tab; unlock(); return; }
+    state.activeTab = tab;
     document.querySelectorAll('.tab-section').forEach(section => { section.hidden = section.id !== tab; }); document.querySelectorAll('[data-tab]').forEach(item => { if (item.dataset.tab === tab) item.setAttribute('aria-current', 'page'); else item.removeAttribute('aria-current'); });
     await ({ commissions, creators, network, scenarios })[tab]();
   }
   $('#close-detail').addEventListener('click', () => $('#detail').close());
   $('#logout').addEventListener('click', () => auth.logout().catch(error => notice(error.message, true)));
   document.querySelectorAll('[data-tab]').forEach(item => item.addEventListener('click', () => activate(item.dataset.tab)));
-  bindForm($('#unlock-form'), async data => { await api('/admin/verificar', { method: 'POST', body: data }); $('#unlock-form').reset(); $('#stepup').hidden = true; if (state.restoreDetail) { $('#detail').showModal(); state.restoreDetail = false; } notice('Acesso administrativo confirmado por 5 minutos. Você pode salvar sua alteração.'); });
+  bindForm($('#unlock-form'), async data => { await api('/admin/verificar', { method: 'POST', body: data }); state.me.adminStepUp = true; $('#unlock-form').reset(); $('#stepup').hidden = true; if (state.restoreDetail) { $('#detail').showModal(); state.restoreDetail = false; } notice('Acesso administrativo confirmado por 5 minutos.'); await activate(state.pendingTab || state.activeTab); });
   bindForm($('#commission-filters'), () => commissions()); $('#commission-filters').addEventListener('reset', () => setTimeout(() => commissions(), 0));
   bindForm($('#creator-filters'), () => creators());
   bindForm($('#network-filter'), async data => { state.networkId = data.id.trim(); await network(); });
@@ -162,7 +164,7 @@
       $('#app').hidden = false; $('#entry').hidden = true; $('#logout').hidden = false; $('#identity').textContent = data.isAdmin ? 'Administração · acesso protegido' : (data.creator.nome || data.creator.email) + ' · Código ' + data.creator.afiliado_codigo;
       $('[data-tab=creators]').hidden = !data.isAdmin; $('#commission-creator-filter').hidden = !data.isAdmin; $('[data-tab=scenarios]').hidden = !(data.creator?.demo_enabled && data.creator.status === 'ativo'); $('#network-filter').hidden = !data.isAdmin;
       state.networkId = data.creator?.id || ''; $('#network-filter input').value = state.networkId;
-      await commissions();
+      await activate('commissions');
     } catch (error) { $('#identity').textContent = 'Não foi possível abrir o painel.'; notice(error.message, true); }
   })();
 })();

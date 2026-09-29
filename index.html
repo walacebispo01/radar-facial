@@ -1803,6 +1803,18 @@
                 <i class="fa-solid fa-shield-halved" style="color:var(--gold);"></i> Administração
             </h3>
 
+            <section class="simulation-admin-section" id="affiliateAdminStepUp">
+                <h4 style="margin:0 0 5px;"><i class="fa-solid fa-mobile-screen-button" style="color:var(--gold);"></i> Confirmar autenticador</h4>
+                <p class="affiliate-admin-note" style="margin:0 0 12px;">Digite o código atual do seu aplicativo autenticador para acessar a administração.</p>
+                <form class="simulation-admin-form" onsubmit="confirmarTotpAdmin(event)">
+                    <input class="affiliate-admin-input" id="affiliateAdminTotp" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="Código de 6 dígitos" required>
+                    <button class="affiliate-create-btn" type="submit"><i class="fa-solid fa-lock-open"></i> Confirmar</button>
+                </form>
+                <div id="affiliateAdminTotpStatus" class="affiliate-admin-note" role="status" aria-live="polite"></div>
+            </section>
+
+            <div id="affiliateAdminProtectedContent" hidden>
+
             <section class="simulation-admin-section">
                 <h4 style="margin:0 0 5px;"><i class="fa-solid fa-wand-magic-sparkles" style="color:#93c5fd;"></i> Modo Simulação</h4>
                 <p class="affiliate-admin-note" style="margin:0;">Autorize criadores pelo e-mail da conta Google. Cada criador poderá cadastrar até 2 links próprios.</p>
@@ -1838,6 +1850,7 @@
 
             <div id="affiliateAdminStatus" class="affiliate-admin-note">Carregando afiliados...</div>
             <div class="affiliate-list" id="affiliateAdminList" style="margin-top:12px;"></div>
+            </div>
         </div>
     </div>
 
@@ -3319,13 +3332,53 @@
            AFILIADOS - ADMIN
         ========================================================= */
 
-        function abrirPainelAfiliados() {
+        async function abrirPainelAfiliados() {
             if (RadarCreatorDemo.enabled()) { location.assign('/painel'); return; }
             if (!usuarioEhAdmin) return;
 
             const modal = document.getElementById('modalAfiliadosAdmin');
             modal.style.display = 'flex';
             document.body.classList.add('modal-open');
+            const stepUp = document.getElementById('affiliateAdminStepUp');
+            const protectedContent = document.getElementById('affiliateAdminProtectedContent');
+            stepUp.hidden = false;
+            protectedContent.hidden = true;
+            document.getElementById('affiliateAdminTotpStatus').innerText = '';
+            try {
+                const res = await authClient.request('/api/programa/me');
+                const data = await res.json();
+                if (res.ok && data.success && data.isAdmin && data.adminStepUp) {
+                    liberarPainelAdminProtegido();
+                    return;
+                }
+            } catch (_) { /* O formulário permanece fechado por padrão. */ }
+            document.getElementById('affiliateAdminTotp').focus();
+        }
+
+        async function confirmarTotpAdmin(event) {
+            event.preventDefault();
+            const input = document.getElementById('affiliateAdminTotp');
+            const status = document.getElementById('affiliateAdminTotpStatus');
+            const code = input.value.trim();
+            if (!/^\d{6}$/.test(code)) { status.innerText = 'Informe os 6 dígitos do autenticador.'; input.focus(); return; }
+            status.innerText = 'Validando código...';
+            try {
+                const res = await authClient.request('/api/programa/admin/verificar', {
+                    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) throw new Error(data.error || 'Código inválido ou expirado.');
+                input.value = '';
+                liberarPainelAdminProtegido();
+            } catch (error) {
+                status.innerText = error.message || 'Não foi possível validar o autenticador.';
+                input.select();
+            }
+        }
+
+        function liberarPainelAdminProtegido() {
+            document.getElementById('affiliateAdminStepUp').hidden = true;
+            document.getElementById('affiliateAdminProtectedContent').hidden = false;
             carregarCriadoresSimulacaoAdmin();
             carregarAfiliadosAdmin();
         }

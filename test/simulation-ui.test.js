@@ -46,3 +46,18 @@ test('administrador vê acesso ao painel durante transição mesmo com programa 
     const source = fs.readFileSync(path.join(__dirname, '../public/creator-demo.js'), 'utf8');
     assert.match(source, /state\?\.isAdmin \|\| \(state\?\.enabled && state\.creator\?\.status === 'ativo'\)/);
 });
+
+test('administração legada exige confirmação TOTP antes de revelar os controles', () => {
+    assert.match(html, /id="affiliateAdminStepUp"/);
+    assert.match(html, /id="affiliateAdminTotp"[^>]*pattern="\[0-9\]\{6\}"/);
+    assert.match(html, /id="affiliateAdminProtectedContent" hidden/);
+    assert.match(html, /authClient\.request\('\/api\/programa\/admin\/verificar'/);
+    assert.match(html, /if \(res\.ok && data\.success && data\.isAdmin && data\.adminStepUp\)/);
+});
+
+test('painel novo interrompe navegação administrativa até o step-up', () => {
+    const script = fs.readFileSync(path.join(__dirname, '..', 'public', 'creator-panel.js'), 'utf8');
+    assert.match(script, /state\.me\.isAdmin && !state\.me\.adminStepUp/);
+    assert.match(script, /state\.me\.adminStepUp = true/);
+    assert.match(script, /await activate\(state\.pendingTab \|\| state\.activeTab\)/);
+});

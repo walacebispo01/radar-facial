@@ -44,19 +44,15 @@ app.use(['/api/descontar-credito', '/api/criar-pix', '/api/verificar-pix', '/api
 if (programSecurity) {
     app.use('/api/admin/simulacao', (req, res, next) => {
         if (!emailEhAdmin(req.auth?.email)) return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
-        const endpoint = req.path.toLowerCase().replace(/\/+$/, '');
-        if (['/autorizar', '/remover'].includes(endpoint)) return programSecurity.requireStepUp(req, res, next);
-        next();
+        return programSecurity.requireStepUp(req, res, next);
     }, programSecurity.limiter('legacy-simulation-admin', 60));
     app.use('/api/admin/afiliados', (req, res, next) => {
         if (!emailEhAdmin(req.auth?.email)) return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
-        // Legacy mutation endpoints cannot bypass the new administrator second factor.
         const endpoint = req.path.toLowerCase().replace(/\/+$/, '');
-        if (['/criar', '/atualizar', '/pagar'].includes(endpoint)) {
-            if (!creatorStore) return res.status(503).json({ success: false, error: 'Administração temporariamente desativada.' });
-            return programSecurity.requireStepUp(req, res, next);
+        if (['/criar', '/atualizar', '/pagar'].includes(endpoint) && !creatorStore) {
+            return res.status(503).json({ success: false, error: 'Administração temporariamente desativada.' });
         }
-        next();
+        return programSecurity.requireStepUp(req, res, next);
     }, programSecurity.limiter('legacy-admin', 60));
     app.use(['/api/criar-pix', '/api/verificar-pix', '/api/escanear-rosto'], programSecurity.limiter('paid-operations', 30));
     app.use('/api/login-google', programSecurity.limiter('login', 30));
