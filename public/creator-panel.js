@@ -20,6 +20,12 @@
     }
     return data;
   }
+  async function legacyApi(path, { body } = {}) {
+    const response = await auth.request('/api/admin/simulacao' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.success === false) { if (data.code === 'STEP_UP_REQUIRED') unlock(); throw new Error(data.code === 'STEP_UP_REQUIRED' ? 'Confirme o código do autenticador acima e tente novamente.' : (data.error || 'Não foi possível concluir.')); }
+    return data;
+  }
   function values(form) { return Object.fromEntries(new FormData(form)); }
   function query(data) { const params = new URLSearchParams(); Object.entries(data).forEach(([key, value]) => { if (value !== '' && value != null) params.set(key, value); }); return '?' + params.toString(); }
   function button(text, action, className = 'quiet') { const el = node('button', text, className); el.type = 'button'; el.addEventListener('click', () => Promise.resolve().then(action).catch(error => notice(error.message, true))); return el; }
@@ -93,6 +99,13 @@
     await load($('#creator-list'), async () => { const data = await api('/admin/criadores' + query({ ...values($('#creator-filters')), page })); return () => {
       table($('#creator-list'), data.items || [], [{ title: 'Nome', value: row => row.nome }, { title: 'E-mail', value: row => row.email }, { title: 'Comissão-base', value: row => row.percentual + '%' }, { title: 'Status', value: row => label(row.status) }, { title: 'Gravação', value: row => row.demo_enabled ? 'Liberada' : 'Bloqueada' }, { title: 'Ações', value: row => button('Gerenciar', () => manageCreator(row)) }]); pagination($('#creator-pages'), data, page, creators);
     }; });
+    await simulationAccess();
+  }
+  async function simulationAccess() {
+    await load($('#simulation-access-list'), async () => { const data = await legacyApi('/listar'); return () => table($('#simulation-access-list'), data.criadores || [], [
+      { title: 'E-mail', value: row => row.email }, { title: 'Links', value: row => (row.links || []).length },
+      { title: 'Ação', value: row => button('Remover', async () => { await legacyApi('/remover', { body: { email: row.email } }); await simulationAccess(); }) }
+    ]); });
   }
   function manageCreator(creator) {
     const body = detail(creator.nome || creator.email); fields(body, [['ID', creator.id], ['E-mail', creator.email], ['Código de indicação', creator.afiliado_codigo], ['Indicador', creator.parent_id], ['Nível', creator.depth]]);
@@ -138,6 +151,7 @@
   bindForm($('#creator-filters'), () => creators());
   bindForm($('#network-filter'), async data => { state.networkId = data.id.trim(); await network(); });
   bindForm($('#creator-form'), async data => { await api('/admin/criadores', { method: 'POST', body: { ...data, parent_id: data.parent_id.trim() || null, percentual: Number(data.percentual), demo_enabled: $('#creator-form').elements.demo_enabled.checked } }); $('#creator-form').reset(); await creators(); });
+  bindForm($('#simulation-access-form'), async data => { await legacyApi('/autorizar', { body: { email: data.email } }); $('#simulation-access-form').reset(); await simulationAccess(); });
   bindForm($('#scenario-form'), async data => { const urls = data.links.split(/\r?\n/).map(line => line.trim()).filter(Boolean); if (!urls.length || urls.some(url => !safeURL(url))) throw new Error('Informe links válidos que comecem com https:// ou http://, um por linha.'); await api('/cenarios', { method: 'POST', body: { ...(data.id ? { id: data.id } : {}), nome: data.nome, links: urls.map(url => ({ url })) } }); $('#scenario-form').reset(); await scenarios(); });
 
   (async () => {

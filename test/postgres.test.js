@@ -37,6 +37,8 @@ test('Persistência PostgreSQL com o schema exato, em memória', async t => {
     const db = new PGlite();
     await db.exec(fs.readFileSync(path.join(__dirname, '../sql/schema-proposto.sql'), 'utf8'));
     await db.exec(fs.readFileSync(path.join(__dirname, '../sql/migrations/001-sessoes.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../sql/migrations/002-criadores.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../sql/migrations/004-simulacao-historico.sql'), 'utf8'));
     const pool = memoryPool(db);
     const store = createStore(pool);
     t.after(() => db.close());
@@ -360,6 +362,7 @@ test('Persistência PostgreSQL com o schema exato, em memória', async t => {
                 axios.post = originalAxiosSimulation;
             }
             assert.equal(chamadasFaceCheckNaSimulacao, 0);
+            assert.equal(Number((await db.query("SELECT count(*) FROM public.simulacao_execucoes WHERE usuario_email=$1", [creator.email])).rows[0].count), 1);
             assert.equal(await store.login(creator.email), creditosAntesSimulacao);
             const creators = await post('/api/admin/simulacao/listar', {}, admin);
             assert.equal(creators.status, 200);

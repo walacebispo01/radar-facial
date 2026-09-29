@@ -43,17 +43,17 @@ O programa não inclui exportação nem pagamento automático. Não confundir sa
 
 Somente criadores ativos com `demo_enabled=true` podem salvar e executar cenários próprios. Cada cenário aceita de 1 a 20 links HTTP/HTTPS sem credenciais; há até 100 cenários por criador. Títulos devem ser exibidos como texto e links devem continuar sujeitos à validação no cliente.
 
-A execução registra identificador, cenário, criador, instante e itens retornados. Não consulta o provedor de busca facial, não consome crédito e não cria pagamento ou comissão. O painel identifica os cenários de gravação; a página de resultados usa o visual comum, conforme solicitado, e a identificação da simulação será feita na edição do vídeo. Não há reconhecimento para escolher o cenário: o criador seleciona explicitamente um cenário próprio. O histórico administrativo retorna os últimos 100 registros de cada categoria.
+A execução registra identificador, conta, instante e itens retornados também para contas autorizadas somente no Modo Simulação legado, sem convertê-las em participantes financeiros. Criadores cadastrados no programa mantêm adicionalmente o vínculo com o cenário e o cadastro financeiro. Nenhum desses caminhos consulta o provedor de busca facial, consome crédito ou cria pagamento ou comissão. O painel identifica os cenários de gravação; a página de resultados usa o visual comum, conforme solicitado, e a identificação da simulação será feita na edição do vídeo. Não há reconhecimento para escolher o cenário: o criador seleciona explicitamente um cenário próprio. O histórico administrativo retorna os últimos 100 registros de cada categoria.
 
 ## Migrações e implantação
 
 1. Confirme backup restaurável e execute primeiro em banco de homologação. O banco deve ter o schema base existente e `001-sessoes.sql` já aplicados. O novo runner não instala nem presume compatibilidade de um baseline ausente.
 2. Mantenha a feature flag desativada. Confira variáveis e segredos no ambiente de destino sem copiá-los para logs ou arquivos de entrega.
 3. Execute `npm test` e `npm run check` na versão que será implantada.
-4. Execute `npm run migrate:creators` usando a conexão do ambiente pretendido. O runner aplica `002-criadores.sql` e `003-comissoes-rede.sql` sob uma única transação e um bloqueio de migração. Falhar em qualquer uma reverte ambas.
+4. Execute `npm run migrate:creators` usando a conexão do ambiente pretendido. O runner aplica `002-criadores.sql`, `003-comissoes-rede.sql` e `004-simulacao-historico.sql` sob uma única transação e um bloqueio de migração. Falhar em qualquer uma reverte todo o lote ainda não aplicado. A migração 004 preserva um histórico independente para contas autorizadas somente à simulação.
 5. O runner registra nome e SHA-256 em `public.programa_migracoes`. Reexecutar com os mesmos arquivos apenas verifica e ignora migrações já aplicadas. Alterar conteúdo de arquivo aplicado é recusado. O hash normaliza CRLF e BOM para não gerar diferença apenas por formato de arquivo no Windows. Não edite migrações publicadas; crie outra migração.
 6. Se tabelas já tiverem sido criadas manualmente sem registro, o runner falha e reverte. Revise o estado com cuidado; não insira hashes para mascarar divergências nem exclua tabelas automaticamente.
-7. Em homologação, confirme cadastro, TOTP e CSRF, limite da concessão, repetição de chave, isolamento de acesso entre criadores, simulação sem débito, distribuição das redes curta/longa, reembolso parcial/total repetido e navegação no celular.
+7. Em homologação, confirme cadastro, TOTP e CSRF, inclusive o acesso administrativo ao TOTP durante a transição com a flag desativada, limite da concessão, repetição de chave, isolamento de acesso entre criadores, histórico de contas somente de simulação, simulação sem débito, distribuição das redes curta/longa, reembolso parcial/total repetido e navegação no celular.
 8. Após validação, publique a versão compatível e ative `CREATOR_PROGRAM_ENABLED=true`. Observe eventos pendentes, falhas de processamento e respostas do webhook. Não reenvie pagamentos reais para fazer testes.
 
 ## Reversão operacional

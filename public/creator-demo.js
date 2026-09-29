@@ -7,7 +7,7 @@
 
     function renderAccess() {
         const button = document.getElementById('creatorPanelBtn');
-        if (button) button.style.display = state?.enabled && (state.isAdmin || state.creator?.status === 'ativo') ? 'flex' : 'none';
+        if (button) button.style.display = state?.isAdmin || (state?.enabled && state.creator?.status === 'ativo') ? 'flex' : 'none';
     }
     async function read(url, init) {
         const response = await client.request(url, init);

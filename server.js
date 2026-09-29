@@ -17,7 +17,7 @@ const FormData = require('form-data');
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 function createApp({ store, sessions, payment: paymentOverride, verifyGoogle,
-    creatorStore, commissionProgram, programSecurity, webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET,
+    creatorStore, simulationProgramStore = creatorStore, commissionProgram, programSecurity, webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET,
     appOrigin = process.env.APP_ORIGIN || process.env.RENDER_EXTERNAL_URL } = {}) {
 if (!store) throw new Error('Persistência PostgreSQL obrigatória.');
 const app = express();
@@ -42,6 +42,12 @@ app.use(['/api/descontar-credito', '/api/criar-pix', '/api/verificar-pix', '/api
     '/api/admin/afiliados', '/api/admin/simulacao', '/api/simulacao'],
     auth.browserMutation, auth.requireSession, auth.csrf);
 if (programSecurity) {
+    app.use('/api/admin/simulacao', (req, res, next) => {
+        if (!emailEhAdmin(req.auth?.email)) return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
+        const endpoint = req.path.toLowerCase().replace(/\/+$/, '');
+        if (['/autorizar', '/remover'].includes(endpoint)) return programSecurity.requireStepUp(req, res, next);
+        next();
+    }, programSecurity.limiter('legacy-simulation-admin', 60));
     app.use('/api/admin/afiliados', (req, res, next) => {
         if (!emailEhAdmin(req.auth?.email)) return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
         // Legacy mutation endpoints cannot bypass the new administrator second factor.
@@ -269,6 +275,7 @@ app.post('/api/admin/simulacao/remover', async (req, res) => {
 
 app.post('/api/simulacao/perfil', async (req, res) => {
     try {
+        if (simulationProgramStore) await simulationProgramStore.assertLegacySimulationAccess(req.auth.email);
         const perfil = await store.getSimulationProfile(req.auth.email);
         if (!perfil) return res.status(403).json({ success: false, error: 'Modo Simulação não autorizado.' });
         return res.json({ success: true, autorizado: true, links: perfil.links });
@@ -277,14 +284,18 @@ app.post('/api/simulacao/perfil', async (req, res) => {
 
 app.post('/api/simulacao/executar', async (req, res) => {
     try {
+        if (simulationProgramStore) await simulationProgramStore.assertLegacySimulationAccess(req.auth.email);
         const perfil = await store.getSimulationProfile(req.auth.email);
         if (!perfil) return res.status(403).json({ success: false, error: 'Modo Simulação não autorizado.' });
+        await store.recordSimulationExecution(req.auth.email, perfil.links.slice(0, 2));
+        if (simulationProgramStore) await simulationProgramStore.recordLegacySimulation(req.auth.email, perfil.links.slice(0, 2));
         return res.json({ success: true, simulado: true, links: perfil.links.slice(0, 2) });
     } catch (error) { return erroAfiliado(res, error, 'Erro ao executar o Modo Simulação.'); }
 });
 
 app.post('/api/simulacao/links', async (req, res) => {
     try {
+        if (simulationProgramStore) await simulationProgramStore.assertLegacySimulationAccess(req.auth.email);
         if (!Array.isArray(req.body?.links) || req.body.links.length > 2) {
             return res.status(400).json({ success: false, error: 'Cadastre no máximo 2 links.' });
         }
@@ -1491,17 +1502,23 @@ return app;
 
 async function startServer() {
 const pool = createPool();
-let commissionProgram, creatorStore, programSecurity;
+let commissionProgram, creatorStore, simulationProgramStore, programSecurity;
 const programEnabled = process.env.CREATOR_PROGRAM_ENABLED === 'true';
 try {
     await pool.query('SELECT 1');
-    const migrated = (await pool.query("SELECT to_regclass('public.comissoes_rede_eventos') AS relation")).rows[0].relation;
+    const state = (await pool.query("SELECT to_regclass('public.criadores') AS creators, to_regclass('public.comissoes_rede_eventos') AS commissions")).rows[0];
+    const migrated = state.commissions;
     // Existing snapshots must continue to receive refunds even during a feature rollback.
     if (migrated || programEnabled) {
         if (!process.env.MERCADOPAGO_WEBHOOK_SECRET) throw new Error('Configure MERCADOPAGO_WEBHOOK_SECRET antes de ativar o programa.');
         if (!migrated) throw new Error('Execute migrate:creators antes de ativar o programa.');
         commissionProgram = require('./lib/commission-program').createCommissionProgram(pool);
         programSecurity = createProgramSecurity(pool);
+    }
+    if (state.creators) {
+        const maxGrant = Number(process.env.MAX_ADMIN_GRANT || 1000);
+        if (!Number.isSafeInteger(maxGrant) || maxGrant < 1) throw new Error('MAX_ADMIN_GRANT deve ser um inteiro positivo.');
+        simulationProgramStore = require('./lib/creator-store').createCreatorStore(pool, { maxGrant });
     }
     if (programEnabled) {
         const maxGrant = Number(process.env.MAX_ADMIN_GRANT || 1000);
@@ -1511,14 +1528,14 @@ try {
             const { rows } = await pool.query('SELECT to_regclass($1) AS relation', ['public.' + table]);
             if (!rows[0].relation) throw new Error('Execute migrate:creators antes de ativar o programa.');
         }
-        creatorStore = require('./lib/creator-store').createCreatorStore(pool, { maxGrant });
+        creatorStore = simulationProgramStore;
     }
 } catch (error) {
     await pool.end();
     throw error;
 }
 const app = createApp({ store: createStore(pool, { commissionProgram }), sessions: createSessionStore(pool),
-    creatorStore, commissionProgram, programSecurity });
+    creatorStore, simulationProgramStore, commissionProgram, programSecurity });
 let workerRunning = null;
 const runWorker = () => {
     if (!commissionProgram || workerRunning) return;

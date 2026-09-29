@@ -52,6 +52,16 @@ test("Criadores: árvore, auditoria, créditos e simulação isolada", async (t)
     },
     actor,
   );
+  await t.test("simulação atual registra histórico e respeita suspensão", async () => {
+    assert.equal(await store.assertLegacySimulationAccess(root.email), true);
+    const run = await store.recordLegacySimulation(root.email, ["https://instagram.com/root"]);
+    assert.ok(run.execution_id);
+    assert.equal((await store.creatorHistory(root.id)).simulations.length, 1);
+    await store.updateCreator(root.id, { status: "suspenso", motivo: "Pausa de teste" }, actor);
+    await assert.rejects(store.assertLegacySimulationAccess(root.email), { status: 403 });
+    await assert.rejects(store.recordLegacySimulation(root.email, ["https://x.com/root"]), { status: 403 });
+    await store.updateCreator(root.id, { status: "ativo", motivo: "Retorno de teste" }, actor);
+  });
   await t.test("vínculo explícito e árvore imutável", async () => {
     assert.equal((await store.me(root.email)).id, root.id);
     assert.equal(await store.me("unknown@example.test"), null);
@@ -173,7 +183,7 @@ test("Criadores: árvore, auditoria, créditos e simulação isolada", async (t)
       const run = await store.runScenario(root.email, scenario.id);
       assert.equal(run.items.length, 1);
       assert.equal((await store.me(root.email)).creditos, 10);
-      assert.equal((await store.creatorHistory(root.id)).simulations.length, 1);
+      assert.equal((await store.creatorHistory(root.id)).simulations.length, 2);
       await store.updateCreator(
         root.id,
         { demo_enabled: false, motivo: "Desabilitar" },

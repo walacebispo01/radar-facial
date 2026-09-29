@@ -6,6 +6,36 @@ const { PGlite } = require("@electric-sql/pglite");
 const { createStore } = require("../lib/postgres-store");
 const { createSessionStore } = require("../lib/session-store");
 const { createProgramSecurity, totp } = require("../lib/program-security");
+const express = require("express");
+const { mountProgram } = require("../lib/program-routes");
+
+test("TOTP administrativo permanece acessível durante transição com programa desativado", async (t) => {
+  const app = express();
+  app.use(express.json());
+  const auth = {
+    requireSession(req, _res, next) { req.auth = { email: "admin@example.test" }; next(); },
+    browserMutation(_req, _res, next) { next(); },
+    csrf(_req, _res, next) { next(); },
+  };
+  const security = {
+    active: async () => false,
+    limiter: () => (_req, _res, next) => next(),
+    verify: async (_auth, code) => ({ ok: code === "123456" }),
+  };
+  mountProgram(app, { auth, creators: null, commissions: null, security,
+    isAdmin: email => email === "admin@example.test" });
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise(resolve => server.once("listening", resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const base = `http://127.0.0.1:${server.address().port}/api/programa`;
+  const me = await fetch(base + "/me");
+  assert.deepEqual(await me.json(), { success: true, enabled: false, isAdmin: true, creator: null, adminStepUp: false });
+  const verified = await fetch(base + "/admin/verificar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: "123456" }) });
+  assert.equal(verified.status, 200);
+  assert.equal((await verified.json()).success, true);
+  assert.equal((await fetch(base + "/admin/criadores")).status, 503);
+});
+
 test("rotas exigem sessão, CSRF, administrador e 2FA; criador não troca identidade", async (t) => {
   const db = new PGlite();
   t.after(() => db.close());
@@ -202,6 +232,10 @@ test("rotas exigem sessão, CSRF, administrador e 2FA; criador não troca identi
         percentual: 10,
       })
     ).body.code,
+    "STEP_UP_REQUIRED",
+  );
+  assert.equal(
+    (await request("/api/admin/simulacao/autorizar", "POST", admin, { email: "creator@example.test" })).body.code,
     "STEP_UP_REQUIRED",
   );
   const code = totp(secret, Math.floor(now / 30000));

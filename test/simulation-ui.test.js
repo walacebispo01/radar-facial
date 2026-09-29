@@ -31,3 +31,18 @@ test('fluxo simulado é separado antes do endpoint de pesquisa real', () => {
 test('botão do modo simulação não é ocultado pela regra mobile dos botões administrativos', () => {
     assert.match(html, /\.admin-affiliate-btn:not\(\.simulation-creator-btn\)\s*\{\s*display:\s*none\s*!important/);
 });
+
+test('painel do programa incorpora os controles da autorização de simulação existente', () => {
+    const panel = fs.readFileSync(path.join(__dirname, '..', 'public', 'creator-panel.html'), 'utf8');
+    const script = fs.readFileSync(path.join(__dirname, '..', 'public', 'creator-panel.js'), 'utf8');
+    assert.match(panel, /id="simulation-access-form"/);
+    assert.match(panel, /id="simulation-access-list"/);
+    assert.match(script, /\/api\/admin\/simulacao/);
+    assert.match(script, /legacyApi\('\/autorizar'/);
+    assert.match(script, /legacyApi\('\/remover'/);
+});
+
+test('administrador vê acesso ao painel durante transição mesmo com programa desativado', () => {
+    const source = fs.readFileSync(path.join(__dirname, '../public/creator-demo.js'), 'utf8');
+    assert.match(source, /state\?\.isAdmin \|\| \(state\?\.enabled && state\.creator\?\.status === 'ativo'\)/);
+});

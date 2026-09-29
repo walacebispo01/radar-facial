@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
-const MIGRATIONS = ['002-criadores.sql', '003-comissoes-rede.sql'];
+const MIGRATIONS = ['002-criadores.sql', '003-comissoes-rede.sql', '004-simulacao-historico.sql'];
 
 function loadMigrations(directory = path.join(__dirname, '../sql/migrations')) {
     return MIGRATIONS.map(name => {
