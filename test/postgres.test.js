@@ -61,6 +61,16 @@ test('Persistência PostgreSQL com o schema exato, em memória', async t => {
         assert.equal((await db.query('SELECT count(*) FROM public.comissoes_afiliados')).rows[0].count, 0);
     });
 
+    await t.test('pagamentos confirmados concedem exatamente os créditos dos quatro pacotes', async () => {
+        const pacotes = [[12.99, 1], [54.95, 5], [99, 10], [159, 20]];
+        for (const [amount, quantity] of pacotes) {
+            const f = await fixture({ affiliate: false, amount, quantity });
+            const confirmed = await store.syncPayment(f.data.payment_id, f.remote('approved'));
+            assert.equal(confirmed.creditos, quantity);
+            assert.equal(await store.login(f.data.email), quantity);
+        }
+    });
+
     await t.test('aprovações repetidas liberam créditos e comissão uma única vez', async () => {
         const f = await fixture();
         const results = await Promise.all(Array.from({ length: 8 }, () => store.syncPayment(f.data.payment_id, f.remote('approved'))));
@@ -253,9 +263,17 @@ test('Persistência PostgreSQL com o schema exato, em memória', async t => {
         const { createApp } = require('../server');
         let remoteStatus = 'pending';
         let failProvider = false;
+        let paymentSequence = 0;
+        let paymentCreateCalls = 0;
+        const paymentAmounts = new Map();
         const payment = {
-            async create() { return { id: 'http-1', status: 'pending', point_of_interaction: { transaction_data: { qr_code: 'teste', qr_code_base64: null, ticket_url: null } } }; },
-            async get({ id }) { if (failProvider) throw new Error('segredo'); return { id, status: remoteStatus, transaction_amount: 50 }; },
+            async create({ body }) {
+                paymentCreateCalls++;
+                const id = `http-${++paymentSequence}`;
+                paymentAmounts.set(id, body.transaction_amount);
+                return { id, status: 'pending', point_of_interaction: { transaction_data: { qr_code: 'teste', qr_code_base64: null, ticket_url: null } } };
+            },
+            async get({ id }) { if (failProvider) throw new Error('segredo'); return { id, status: remoteStatus, transaction_amount: paymentAmounts.get(id) }; },
         };
         const verifyGoogle = async credential => credential === 'admin'
             ? { email: 'admin@example.test', sub: 'admin-sub' }
@@ -355,21 +373,26 @@ test('Persistência PostgreSQL com o schema exato, em memória', async t => {
             const af = (await post('/api/admin/afiliados/criar', { nome: 'HTTP', percentual: 15 }, admin)).body.afiliado;
             assert.equal((await fetch(base + '/api/afiliados/validar/' + af.codigo)).status, 200);
             assert.deepEqual((await post('/api/afiliados/clique', { codigo: af.codigo })).body, { success: true });
-            const pix = await post('/api/criar-pix', { valor: 50, creditos: 2, afiliado_codigo: af.codigo }, user,
+            const chamadasAntesManipulacao = paymentCreateCalls;
+            assert.equal((await post('/api/criar-pix', { pacote: 'popular', valor: 0.01 }, user)).status, 400);
+            assert.equal((await post('/api/criar-pix', { pacote: 'popular', creditos: 999 }, user)).status, 400);
+            assert.equal((await post('/api/criar-pix', { pacote: 'inventado' }, user)).status, 400);
+            assert.equal(paymentCreateCalls, chamadasAntesManipulacao);
+            const pix = await post('/api/criar-pix', { pacote: 'popular', afiliado_codigo: af.codigo }, user,
                 { 'idempotency-key': 'pix-http-1' });
             assert.equal(pix.status, 200);
             assert.deepEqual(Object.keys(pix.body).sort(), ['success', 'transaction_id', 'status', 'status_detail', 'qr_code', 'qr_code_base64', 'ticket_url', 'transaction_data'].sort());
             assert.equal((await post('/api/verificar-pix', { transaction_id: 'unknown' }, user)).status, 404);
             remoteStatus = 'approved';
-            assert.deepEqual((await post('/api/verificar-pix', { transaction_id: 'http-1' }, user)).body,
-                { success: true, pago: true, status: 'approved', creditos: 2, transaction_id: 'http-1' });
-            assert.equal((await post('/api/mercadopago-webhook', { data: { id: 'http-1' } })).status, 200);
-            assert.equal(await store.login('http@example.test'), 2);
-            assert.deepEqual((await post('/api/descontar-credito', {}, user)).body, { success: true, creditos: 1 });
+            assert.deepEqual((await post('/api/verificar-pix', { transaction_id: pix.body.transaction_id }, user)).body,
+                { success: true, pago: true, status: 'approved', creditos: 10, transaction_id: pix.body.transaction_id });
+            assert.equal((await post('/api/mercadopago-webhook', { data: { id: pix.body.transaction_id } })).status, 200);
+            assert.equal(await store.login('http@example.test'), 10);
+            assert.deepEqual((await post('/api/descontar-credito', {}, user)).body, { success: true, creditos: 9 });
             const paid = await post('/api/admin/afiliados/pagar', { codigo: af.codigo }, admin);
             assert.equal(paid.status, 200);
             assert.deepEqual(Object.keys(paid.body).sort(), ['success', 'repasse', 'afiliado'].sort());
-            assert.equal(paid.body.repasse.valor, 7.5);
+            assert.equal(paid.body.repasse.valor, 14.85);
             assert.equal(typeof paid.body.repasse.pago_em, 'string');
             assert.equal((await post('/api/admin/afiliados/pagar', { codigo: af.codigo }, admin)).status, 400);
             assert.equal((await post('/api/admin/afiliados/resumo', { codigo: af.codigo }, admin)).body.afiliado.metricas.vendas, 1);
@@ -379,6 +402,7 @@ test('Persistência PostgreSQL com o schema exato, em memória', async t => {
             const update = await post('/api/admin/afiliados/atualizar', { codigo: af.codigo, percentual: 10, status: 'inativo' }, admin);
             assert.equal(update.body.afiliado.status, 'inativo');
             assert.equal((await fetch(base + '/api/afiliados/validar/' + af.codigo)).status, 404);
+            await db.query('UPDATE public.usuarios SET creditos = 1 WHERE email = $1', [user.email]);
             await post('/api/descontar-credito', {}, user);
             const empty = await post('/api/descontar-credito', {}, user);
             assert.equal(empty.status, 403);

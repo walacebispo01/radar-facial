@@ -7,6 +7,7 @@ const { createGoogleVerifier } = require('./lib/google-auth');
 const { createAuth, isAuthPath } = require('./lib/auth');
 const { mountProgram } = require('./lib/program-routes');
 const { createProgramSecurity, verifyMercadoPagoSignature } = require('./lib/program-security');
+const { getPurchasePlan } = require('./lib/purchase-plans');
 const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
@@ -322,12 +323,7 @@ app.post(
 
         try {
 
-            const {
-                valor,
-                plano,
-                creditos,
-                afiliado_codigo
-            } = req.body;
+            const { pacote, valor, creditos, afiliado_codigo } = req.body;
             const email = req.auth.email;
 
 
@@ -361,30 +357,21 @@ app.post(
                     .trim();
 
 
-            let qtdCreditos =
-                Number(creditos);
+            const planoSelecionado = getPurchasePlan(pacote);
+            if (!planoSelecionado) {
+                return res.status(400).json({ success: false, error: 'Pacote de créditos inválido.' });
+            }
+            const qtdCreditos = planoSelecionado.creditos;
+            const valorCentavos = planoSelecionado.centavos;
+            const valorNumerico = valorCentavos / 100;
 
-
-            if (!Number.isFinite(qtdCreditos)) {
-
-                if (
-                    plano ===
-                    'Pesquisa Única'
-                ) {
-
-                    qtdCreditos = 1;
-
-                } else if (
-                    plano ===
-                    'Pacote Investigador'
-                ) {
-
-                    qtdCreditos = 10;
-
-                } else {
-
-                    qtdCreditos = 40;
-                }
+            // Compatibilidade defensiva: se um cliente antigo ainda enviar estes campos,
+            // eles precisam coincidir com o catálogo imutável do servidor.
+            if (valor !== undefined && Math.round(Number(valor) * 100) !== valorCentavos) {
+                return res.status(400).json({ success: false, error: 'Preço do pacote inválido.' });
+            }
+            if (creditos !== undefined && Number(creditos) !== qtdCreditos) {
+                return res.status(400).json({ success: false, error: 'Quantidade de créditos inválida.' });
             }
 
 
@@ -395,44 +382,6 @@ app.post(
 
             const afiliadoEncontrado = await store.findAffiliate(codigoAfiliadoNormalizado);
             const afiliadoValido = afiliadoEncontrado?.status === 'ativo' ? afiliadoEncontrado.codigo : null;
-
-            const valorNumerico =
-                Number(valor);
-
-
-            if (
-                !Number.isFinite(
-                    valorNumerico
-                ) ||
-                valorNumerico <= 0 || valorNumerico > 9999999999.99
-            ) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    error:
-                        'Valor do pagamento inválido.'
-                });
-            }
-
-
-            if (
-                !Number.isSafeInteger(
-                    qtdCreditos
-                ) ||
-                qtdCreditos <= 0
-            ) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    error:
-                        'Quantidade de créditos inválida.'
-                });
-            }
-
 
             const requestKey = chaveIdempotencia(req);
             const idempotencyKey = requestKey
@@ -447,10 +396,7 @@ app.post(
                     ),
 
                 description:
-                    `Radar Facial - ${
-                        plano ||
-                        'Pacote de Créditos'
-                    }`,
+                    `Radar Facial - ${planoSelecionado.nome}`,
 
                 payment_method_id:
                     'pix',
@@ -469,8 +415,7 @@ app.post(
                         qtdCreditos,
 
                     plano:
-                        plano ||
-                        'Pacote de Créditos',
+                        planoSelecionado.nome,
 
                     afiliado_codigo:
                         afiliadoValido
