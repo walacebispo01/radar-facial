@@ -55,6 +55,20 @@ test('administração legada exige confirmação TOTP antes de revelar os contro
     assert.match(html, /if \(res\.ok && data\.success && data\.isAdmin && data\.adminStepUp\)/);
 });
 
+test('clique administrativo revalida o programa no backend antes de abrir o painel legado', () => {
+    const start = html.indexOf('async function abrirPainelAfiliados()');
+    const end = html.indexOf('async function confirmarTotpAdmin', start);
+    const handler = html.slice(start, end);
+    const freshState = handler.indexOf("authClient.request('/api/programa/me')");
+    const legacyModal = handler.indexOf("document.getElementById('modalAfiliadosAdmin')");
+
+    assert.ok(start > 0 && end > start);
+    assert.ok(freshState > 0 && freshState < legacyModal);
+    assert.match(handler, /data\.isAdmin && data\.enabled/);
+    assert.doesNotMatch(handler, /RadarCreatorDemo\.enabled\(\)/);
+    assert.match(handler, /location\.assign\('\/painel'\)/);
+});
+
 test('painel novo interrompe navegação administrativa até o step-up', () => {
     const script = fs.readFileSync(path.join(__dirname, '..', 'public', 'creator-panel.js'), 'utf8');
     assert.match(script, /state\.me\.isAdmin && !state\.me\.adminStepUp/);

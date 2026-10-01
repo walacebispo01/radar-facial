@@ -3345,8 +3345,18 @@
         ========================================================= */
 
         async function abrirPainelAfiliados() {
-            if (RadarCreatorDemo.enabled()) { location.assign('/painel'); return; }
             if (!usuarioEhAdmin) return;
+
+            // Revalide o estado do programa no clique. O estado carregado no início
+            // da sessão pode ter falhado ou ter sido obtido antes de uma ativação.
+            try {
+                const res = await authClient.request('/api/programa/me');
+                const data = await res.json();
+                if (res.ok && data.success && data.isAdmin && data.enabled) {
+                    location.assign('/painel');
+                    return;
+                }
+            } catch (_) { /* Mantém o painel legado disponível durante a transição. */ }
 
             const modal = document.getElementById('modalAfiliadosAdmin');
             modal.style.display = 'flex';
