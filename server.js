@@ -17,7 +17,7 @@ const FormData = require('form-data');
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 function createApp({ store, sessions, payment: paymentOverride, verifyGoogle,
-    creatorStore, simulationProgramStore = creatorStore, commissionProgram, programSecurity, webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET,
+    creatorStore, simulationProgramStore = creatorStore, creatorPortal, commissionProgram, programSecurity, webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET,
     appOrigin = process.env.APP_ORIGIN || process.env.RENDER_EXTERNAL_URL } = {}) {
 if (!store) throw new Error('Persistência PostgreSQL obrigatória.');
 const app = express();
@@ -36,6 +36,7 @@ app.get('/auth.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'a
 require('./lib/photo-assets')(app);
 require('./lib/test-credit').mountTestCredit(app, { auth, store });
 mountProgram(app, { auth, creators: creatorStore, commissions: commissionProgram, security: programSecurity, isAdmin: emailEhAdmin });
+require('./lib/creator-portal-routes').mountCreatorPortal(app, { auth, portal: creatorPortal, security: programSecurity, enabled: !!creatorStore, isAdmin: emailEhAdmin });
 app.get('/api/session', auth.requireSession, auth.session);
 app.post('/api/logout', auth.browserMutation, auth.requireSession, auth.csrf, auth.logout);
 app.use(['/api/descontar-credito', '/api/criar-pix', '/api/verificar-pix', '/api/escanear-rosto',
@@ -1494,7 +1495,7 @@ return app;
 
 async function startServer() {
 const pool = createPool();
-let commissionProgram, creatorStore, simulationProgramStore, programSecurity;
+let commissionProgram, creatorStore, simulationProgramStore, creatorPortal, programSecurity;
 const programEnabled = process.env.CREATOR_PROGRAM_ENABLED === 'true';
 try {
     await pool.query('SELECT 1');
@@ -1522,12 +1523,17 @@ try {
         }
         creatorStore = simulationProgramStore;
     }
+    const portalTables = ['criadores_convites', 'criadores_candidaturas', 'criadores_videos', 'criadores_portal_auditoria'];
+    if (simulationProgramStore && programSecurity) {
+        const relations = await Promise.all(portalTables.map(table => pool.query('SELECT to_regclass($1) AS relation', ['public.' + table])));
+        if (relations.every(result => result.rows[0].relation)) creatorPortal = require('./lib/creator-portal-store').createCreatorPortalStore(pool, simulationProgramStore);
+    }
 } catch (error) {
     await pool.end();
     throw error;
 }
 const app = createApp({ store: createStore(pool, { commissionProgram }), sessions: createSessionStore(pool),
-    creatorStore, simulationProgramStore, commissionProgram, programSecurity });
+    creatorStore, simulationProgramStore, creatorPortal, commissionProgram, programSecurity });
 let workerRunning = null;
 const runWorker = () => {
     if (!commissionProgram || workerRunning) return;

@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/creator-panel.css">
   <script src="/auth.js" defer></script>
   <script src="/creator-panel.js" defer></script>
+  <script src="/creator-hub.js" defer></script>
 </head>
 <body>
   <header class="topbar"><a class="brand" href="/">radar<span>facial</span></a><span class="badge">Área de criadores</span><button id="logout" class="quiet" hidden>Sair</button></header>
@@ -15,6 +16,7 @@
     <div class="heading"><p class="eyebrow">Seu programa de criadores</p><h1>Visão geral</h1><p id="identity" class="muted">Restaurando sua sessão…</p></div>
     <div id="notice" role="status" aria-live="polite" hidden></div>
     <section id="entry" class="surface" hidden><h2>Entre para acessar o painel</h2><p>Use sua conta cadastrada de criador ou administrador.</p><a class="button" href="/">Entrar com Google</a></section>
+    <section id="creator-hub" hidden></section>
     <div id="app" hidden>
       <nav aria-label="Seções do painel"><button data-tab="commissions" aria-current="page">Comissões</button><button data-tab="network">Minha rede</button><button data-tab="scenarios" hidden>Cenários</button><button data-tab="creators" hidden>Administração</button></nav>
       <section id="stepup" class="surface unlock" hidden aria-labelledby="unlock-title">
@@ -42,7 +44,7 @@
       <section id="creators" class="tab-section" hidden>
         <h2>Administração de criadores</h2><p class="muted">Gerencie acessos, créditos e o percentual-base das próximas vendas.</p>
         <form id="creator-filters" class="surface filters"><label>Buscar<input name="q" placeholder="Nome ou e-mail"></label><label>Status<select name="status"><option value="">Todos</option><option value="ativo">Ativo</option><option value="suspenso">Suspenso</option></select></label><button type="submit">Buscar</button></form>
-        <details class="surface"><summary>Cadastrar criador</summary><form id="creator-form" class="stack"><label>Nome<input name="nome" required maxlength="120"></label><label>E-mail<input type="email" name="email" required></label><label>ID do indicador (opcional)<input name="parent_id"></label><label>Comissão-base (%)<input type="number" name="percentual" required min="0" max="30" step="0.01" value="10"></label><label class="check"><input type="checkbox" name="demo_enabled">Liberar cenários de gravação</label><label>Motivo do cadastro<input name="motivo" required maxlength="500"></label><button type="submit">Cadastrar</button><p class="form-status" role="status"></p></form></details>
+        <details class="surface"><summary>Cadastrar criador</summary><form id="creator-form" class="stack"><label>Nome<input name="nome" required maxlength="120"></label><label>E-mail<input type="email" name="email" required></label><label>ID do indicador (opcional)<input name="parent_id"></label><label>Comissão-base (%)<input type="number" name="percentual" required min="0" max="30" step="0.01" value="10"></label><label class="check"><input type="checkbox" name="demo_enabled" checked disabled>Simulação liberada na aprovação</label><label>Motivo do cadastro<input name="motivo" required maxlength="500"></label><button type="submit">Cadastrar</button><p class="form-status" role="status"></p></form></details>
         <div id="creator-list" class="surface results" aria-live="polite"></div><div id="creator-pages" class="pagination"></div>
         <h3 class="detail-section">Modo Simulação atual</h3><p class="muted">Autorizações existentes continuam separadas da participação financeira.</p>
         <form id="simulation-access-form" class="surface filters"><label>E-mail autorizado<input type="email" name="email" required></label><button type="submit">Autorizar</button><p class="form-status" role="status"></p></form>

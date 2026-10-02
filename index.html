@@ -1674,6 +1674,14 @@
         </div>
     </div>
 
+    <div id="social-proofs-slot"><section class="rf-proofs" id="social-proofs" hidden>
+        <div class="rf-proof-label">Provas sociais</div><h2>Veja na experiência de quem usa.</h2>
+        <p>Assista aos criativos dos nossos afiliados nas plataformas em que eles publicam.</p>
+        <div class="rf-proof-grid"></div>
+        <div class="rf-proof-cta"><div><h3>Sua próxima pesquisa começa com uma foto.</h3><p>Escolha seu pacote e explore os resultados.</p></div><button class="rf-proof-buy" data-proof-buy>Ver pacotes de créditos →</button></div>
+        <a class="rf-proof-more" href="/provas-sociais">Ver todos os vídeos →</a>
+        <p class="rf-proof-note">Conteúdos de criadores afiliados ao Radar Facial.</p>
+    </section></div>
     <div class="user-drawer-backdrop" id="userDrawerBackdrop" onclick="fecharMenuUsuario()" aria-hidden="true"></div>
     <aside class="user-drawer" id="userDrawer" role="dialog" aria-modal="true" aria-labelledby="userDrawerTitle" aria-hidden="true">
         <div class="user-drawer-header">
@@ -1915,6 +1923,8 @@
     </div>
 
     <script src="/auth.js"></script>
+    <link rel="stylesheet" href="/social-proofs.css">
+    <script src="/social-proofs.js" defer></script>
     <script src="/creator-demo.js"></script>
     <script src="/photo-geometry.js"></script>
     <script src="/face-landmarks.js"></script>
@@ -3195,6 +3205,10 @@
                 if (!silencioso) alert(error.message || 'Não foi possível carregar o Modo Simulação.');
             }
             document.getElementById('simulationCreatorBtn').style.display = usuarioSimulacaoAutorizado ? 'inline-flex' : 'none';
+            if (usuarioSimulacaoAutorizado && new URLSearchParams(location.search).get('modo') === 'simulacao') {
+                const target = new URL(location.href); target.searchParams.delete('modo'); history.replaceState(null, '', target.pathname + target.search + target.hash);
+                await abrirModoSimulacao();
+            }
             return usuarioSimulacaoAutorizado;
         }
 

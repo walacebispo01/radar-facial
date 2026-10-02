@@ -54,4 +54,7 @@ test('afiliados permanecem administráveis com programa desativado, exigindo ses
     assert.equal((await request('/api/admin/afiliados/pagar', admin, { codigo: code })).status, 200);
     assert.equal(bookkeepingCalls, 1);
     assert.equal((await request('/api/programa/admin/criadores', admin, {}, {}, 'GET')).status, 503);
+    const proofs = await request('/api/provas-sociais', null, {}, {}, 'GET');
+    assert.equal(proofs.status, 200); assert.deepEqual(proofs.data.items, []);
+    assert.equal((await request('/api/convite?token=invalid', null, {}, {}, 'GET')).status, 503);
 });

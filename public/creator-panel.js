@@ -7,7 +7,7 @@
   const date = value => value ? new Date(value).toLocaleString('pt-BR') : '—';
   const labels = { ativo: 'Ativo', suspenso: 'Suspenso', approved: 'Aprovado', pending: 'Pendente', refunded: 'Reembolsado', cancelled: 'Cancelado', vendedor: 'Vendedor', indicador: 'Indicador direto', inicial: 'Criador inicial', demais: 'Demais níveis', comissao: 'Comissão', estorno: 'Estorno', partial: 'Parcial', full: 'Integral' };
   const label = value => labels[value] || (String(value).startsWith('nivel_') ? 'Nível ' + String(value).slice(6) : value) || '—';
-  const auth = window.RadarAuth.createClient({ onSession(session) { if (!session) { state.me = null; $('#app').hidden = true; $('#entry').hidden = false; $('#logout').hidden = true; $('#identity').textContent = 'Acesso com conta cadastrada'; if ($('#detail').open) $('#detail').close(); } } });
+  const auth = window.RadarAuth.createClient({ onSession(session) { if (!session) { state.me = null; $('#app').hidden = true; $('#entry').hidden = false; $('#logout').hidden = true; $('#identity').textContent = 'Acesso com conta cadastrada'; const hub = $('#creator-hub'); if (hub) { hub.hidden = true; hub.replaceChildren(); } if ($('#detail').open) $('#detail').close(); } } });
 
   function notice(message, error = false) { const el = $('#notice'); el.textContent = message; el.hidden = !message; el.className = error ? 'error' : ''; }
   function unlock() { $('#stepup').hidden = false; state.restoreDetail = $('#detail').open; if ($('#detail').open) $('#detail').close(); $('#stepup').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#totp').focus(); }
@@ -132,7 +132,7 @@
     if (!state.networkId) { $('#network-list').replaceChildren(node('p', 'Informe o ID de um criador para consultar a rede.', 'empty')); return; }
     await load($('#network-list'), async () => { const data = await api('/rede/' + encodeURIComponent(state.networkId) + query({ page })); return () => {
       table($('#network-list'), data.items || [], [{ title: 'Nome', value: row => row.nome }, { title: 'ID', value: row => row.id }, { title: 'Indicador', value: row => row.parent_id }, { title: 'Nível', value: row => row.level ?? row.depth }, { title: 'Status', value: row => label(row.status) }, { title: 'Rede', value: row => button('Ver indicados', async () => { state.networkId = row.id; $('#network-filter input').value = row.id; await network(); }) }]);
-      const trail = node('div', null, 'actions'); (data.path || []).forEach(item => trail.append(button(item.nome || item.id, async () => { state.networkId = item.id; $('#network-filter input').value = item.id; await network(); }))); if (trail.childElementCount) $('#network-list').prepend(trail); if (data.creator) $('#network-list').prepend(node('h3', 'Indicados por ' + data.creator.nome)); pagination($('#network-pages'), data, page, network);
+      const trail = node('div', null, 'actions'); const ownPosition = (data.path || []).findIndex(item => item.id === state.me.creator?.id); (data.path || []).forEach((item, index) => trail.append(state.me.isAdmin || (ownPosition >= 0 && index >= ownPosition) ? button(item.nome || item.id, async () => { state.networkId = item.id; $('#network-filter input').value = item.id; await network(); }) : node('span', item.nome || item.id, 'muted'))); if (trail.childElementCount) $('#network-list').prepend(trail); if (data.creator) $('#network-list').prepend(node('h3', 'Indicados por ' + data.creator.nome)); pagination($('#network-pages'), data, page, network);
     }; });
   }
   async function scenarios() {

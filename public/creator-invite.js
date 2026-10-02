@@ -1,0 +1,14 @@
+(() => {
+    const status = document.getElementById('invite-status'), form = document.getElementById('invite-form'); const token = new URLSearchParams(location.search).get('token');
+    const auth = RadarAuth.createClient({ onSession(session) { form.hidden = !session; if (session) { document.getElementById('invite-account').textContent = 'Conta Google: ' + session.email; document.getElementById('google-invite').hidden = true; } } });
+    const request = async (url, body) => { const r = await auth.request(url, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}); const data = await r.json(); if (!r.ok) throw new Error(data.error); return data; };
+    form.onsubmit = async e => { e.preventDefault(); const button = form.querySelector('button'); button.disabled = true; try { await request('/api/criadores/candidaturas', { token, nome: form.elements.nome.value }); status.textContent = 'Candidatura enviada. Aguarde a aprovação dos administradores.'; form.hidden = true; } catch (e) { status.textContent = e.message; } finally { button.disabled = false; } };
+    (async () => { try {
+        const r = await fetch('/api/convite?token=' + encodeURIComponent(token || ''), { cache: 'no-store' }); const data = await r.json(); if (!r.ok) throw new Error(data.error); status.textContent = 'Você foi convidado por ' + data.inviter.nome + '. Entre com Google para solicitar acesso.';
+        document.getElementById('invite-title').textContent = 'Quero ser criador';
+        const session = await auth.restore(); if (session) { const me = await request('/api/criadores/me'); if (me.creator) { form.hidden = true; status.textContent = 'Sua conta já está cadastrada como criador. Acesse seu painel.'; } else if (me.application) { form.hidden = true; status.textContent = 'Sua candidatura está: ' + me.application.status + '.'; } return; }
+        if (!data.googleClientId) throw new Error('Login Google ainda não configurado.');
+        // Wait for the Google SDK without making any payment or creating a creator before approval.
+        let attempts = 0; const timer = setInterval(() => { if (window.google?.accounts?.id) { clearInterval(timer); google.accounts.id.initialize({ client_id: data.googleClientId, callback: async response => { try { await auth.login(response.credential); const me = await request('/api/criadores/me'); if (me.application) { form.hidden = true; status.textContent = 'Sua candidatura está: ' + me.application.status + '.'; } } catch (e) { status.textContent = e.message; } } }); google.accounts.id.renderButton(document.getElementById('google-invite'), { theme: 'outline', size: 'large', text: 'signin_with' }); } else if (++attempts > 40) { clearInterval(timer); status.textContent = 'Não foi possível carregar o login Google. Atualize a página.'; } }, 250);
+    } catch (e) { form.hidden = true; status.textContent = e.message || 'Convite indisponível.'; } })();
+})();

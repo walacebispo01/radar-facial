@@ -13,7 +13,7 @@ test("TOTP administrativo permanece acessível durante transição com programa 
   const app = express();
   app.use(express.json());
   const auth = {
-    requireSession(req, _res, next) { req.auth = { email: "admin@example.test" }; next(); },
+    requireSession(req, _res, next) { req.auth = { email: "osasukedoinsta@gmail.com" }; next(); },
     browserMutation(_req, _res, next) { next(); },
     csrf(_req, _res, next) { next(); },
   };
@@ -23,7 +23,7 @@ test("TOTP administrativo permanece acessível durante transição com programa 
     verify: async (_auth, code) => ({ ok: code === "123456" }),
   };
   mountProgram(app, { auth, creators: null, commissions: null, security,
-    isAdmin: email => email === "admin@example.test" });
+    isAdmin: email => email === "osasukedoinsta@gmail.com" });
   const server = app.listen(0, "127.0.0.1");
   await new Promise(resolve => server.once("listening", resolve));
   t.after(() => new Promise(resolve => server.close(resolve)));
@@ -67,7 +67,7 @@ test("rotas exigem sessão, CSRF, administrador e 2FA; criador não troca identi
     },
   };
   const old = process.env.ADMIN_EMAILS;
-  process.env.ADMIN_EMAILS = "admin@example.test";
+  process.env.ADMIN_EMAILS = "osasukedoinsta@gmail.com";
   t.after(() => {
     if (old === undefined) delete process.env.ADMIN_EMAILS;
     else process.env.ADMIN_EMAILS = old;
@@ -75,7 +75,7 @@ test("rotas exigem sessão, CSRF, administrador e 2FA; criador não troca identi
   const secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
     now = 1750000000000;
   const security = createProgramSecurity(pool, {
-    secrets: { "admin@example.test": secret },
+    secrets: { "osasukedoinsta@gmail.com": secret },
     now: () => now,
   });
   const calls = [];
@@ -138,7 +138,7 @@ test("rotas exigem sessão, CSRF, administrador e 2FA; criador não troca identi
     sessions: createSessionStore(pool),
     payment: {},
     verifyGoogle: async (credential) => ({
-      email: `${credential}@example.test`,
+      email: credential === "admin" ? "osasukedoinsta@gmail.com" : `${credential}@example.test`,
       sub: credential,
     }),
     creatorStore: creators,
@@ -277,7 +277,7 @@ test("rotas exigem sessão, CSRF, administrador e 2FA; criador não troca identi
     ).status,
     201,
   );
-  assert.equal(calls.at(-1).actor, "admin@example.test");
+  assert.equal(calls.at(-1).actor, "osasukedoinsta@gmail.com");
   assert.equal(calls.at(-1).data.ator, undefined);
   assert.equal(
     (
