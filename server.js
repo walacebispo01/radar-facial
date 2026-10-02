@@ -48,10 +48,6 @@ if (programSecurity) {
     }, programSecurity.limiter('legacy-simulation-admin', 60));
     app.use('/api/admin/afiliados', (req, res, next) => {
         if (!emailEhAdmin(req.auth?.email)) return res.status(403).json({ success: false, error: 'Acesso administrativo não autorizado.' });
-        const endpoint = req.path.toLowerCase().replace(/\/+$/, '');
-        if (['/criar', '/atualizar', '/pagar'].includes(endpoint) && !creatorStore) {
-            return res.status(503).json({ success: false, error: 'Administração temporariamente desativada.' });
-        }
         return programSecurity.requireStepUp(req, res, next);
     }, programSecurity.limiter('legacy-admin', 60));
     app.use(['/api/criar-pix', '/api/verificar-pix', '/api/escanear-rosto'], programSecurity.limiter('paid-operations', 30));
