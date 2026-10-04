@@ -8,7 +8,18 @@ Fonte: https://www.infinitepay.io/checkout-documentacao (consultada em 2026-10-0
 
 ## Confirmações pendentes
 
+- Decisão mais recente do usuário em 2026-10-04: publicar a troca de checkout agora e deixar o controle de estornos para a próxima atualização. Devoluções serão realizadas manualmente na InfinitePay; ainda não há controle de conciliação manual no Radar, nem detecção automática. As comissões de vendas devolvidas não serão corrigidas automaticamente nesse intervalo. Não tratar esta publicação como conclusão dessa pendência.
 - Confirmar aceitação do serviço e como consultar ou receber eventos confiáveis de estorno, cancelamento e chargeback. A documentação consultada descreve aprovação e `paid`, mas não estabelece os eventos reversos necessários ao livro de comissões. `paid=false` não comprova um estorno.
+
+### Informação necessária da InfinitePay para o automático
+
+A página oficial https://www.infinitepay.io/desenvolvedores direciona à documentação do checkout e informa `parcerias@cloudwalk.io` para dúvidas de integração. As duas páginas foram revistas em 2026-10-04; não foi localizado nelas um contrato de estorno. Não concluir que a funcionalidade inexiste: ela pode exigir orientação ou acesso específico do provedor.
+
+Pergunta para o suporte técnico: "No Checkout Integrado, qual API ou webhook informa estorno total, parcial e chargeback? Precisamos do vínculo com order_nsu/transaction_nsu, valor devolvido e status definitivo. Como autenticar essa informação, repetir consultas/eventos perdidos e impedir duplicações? O payment_check permanece paid=true após uma devolução?"
+
+Após obter esse contrato, implementar a consulta/evento oficial, com validação da conta/pedido, persistência idempotente e ajustes cumulativos de comissões usando o snapshot já existente. Reconciliação deve continuar mesmo se novas compras voltarem ao Mercado Pago. Uma contestação aberta não deve ser confundida com perda definitiva. Falha de consulta ou paid=false não autoriza reversão financeira.
+
+Não criar endpoints ou interpretar campos de reembolso que o provedor não documentou. Nenhuma mensagem foi enviada ao suporte, nenhum estorno real foi iniciado e nenhum automático foi ativado. A regra para créditos já consumidos ainda precisa ser definida separadamente.
 
 ## Implementado e pendências
 
@@ -20,7 +31,7 @@ Fonte: https://www.infinitepay.io/checkout-documentacao (consultada em 2026-10-0
 6. Tela de compra redireciona ao checkout e retorna a uma confirmação no site. Não prometer aprovação por ter retornado ao site.
 7. Testados localmente: pedidos repetidos, comprovantes reutilizados, callbacks forjados, falhas externas, pedido de outro usuário, CSRF, fila/snapshot de comissões e confirmação durante retorno ao checkout anterior. PGlite serializa transações e não comprova MVCC no Neon. A API externa é simulada. Falta validação real; pagamento ou estorno real exige autorização específica.
 
-## Publicação depois de resolver as pendências
+## Publicação autorizada com controle de estornos adiado
 
 1. Conferir recuperação do Neon e aplicar apenas `npm run migrate:checkout` (006, transação e registro de hash; não altera migrações anteriores).
 2. Publicar primeiro com `CHECKOUT_PROVIDER=mercadopago`; confirmar commit exato Live no Render.
