@@ -12,7 +12,9 @@
     "check": "node --check server.js && node --check lib/auth.js && node --check lib/database.js && node --check lib/google-auth.js && node --check lib/postgres-store.js && node --check lib/session-store.js && node --check public/auth.js && node --check scripts/check-migration.js && node --check scripts/migrate-sessions.js && node --check scripts/test-db.js && node --check lib/photo-assets.js && node scripts/check-frontend.js && node --check lib/creator-store.js && node --check lib/commission-program.js && node --check lib/program-security.js && node --check lib/program-routes.js && node --check public/creator-panel.js && node --check public/creator-demo.js && node --check scripts/migrate-creators.js && node --check lib/creator-portal-store.js && node --check lib/creator-portal-routes.js && node --check public/creator-hub.js && node --check public/creator-invite.js && node --check public/social-proofs.js",
     "test:browser": "node scripts/test-photo-browser.js",
     "test:browser:programa": "node scripts/test-creator-panel-browser.js && node scripts/test-creator-demo-browser.js",
-    "migrate:creators": "node scripts/migrate-creators.js"
+    "migrate:creators": "node scripts/migrate-creators.js",
+    "migrate:checkout": "node scripts/migrate-checkout.js",
+    "check:checkout": "node --check lib/infinitepay-client.js && node --check lib/infinitepay-orders.js && node --check lib/checkout-routes.js && node --check public/checkout.js && node --check public/payment-return.js && node --check scripts/migrate-checkout.js"
   },
   "keywords": [],
   "author": "",

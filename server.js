@@ -17,7 +17,8 @@ const FormData = require('form-data');
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 function createApp({ store, sessions, payment: paymentOverride, verifyGoogle,
-    creatorStore, simulationProgramStore = creatorStore, creatorPortal, commissionProgram, programSecurity, webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET,
+    creatorStore, simulationProgramStore = creatorStore, creatorPortal, commissionProgram, programSecurity,
+    checkoutOrders, checkoutProvider = 'mercadopago', webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET,
     appOrigin = process.env.APP_ORIGIN || process.env.RENDER_EXTERNAL_URL } = {}) {
 if (!store) throw new Error('Persistência PostgreSQL obrigatória.');
 const app = express();
@@ -35,6 +36,7 @@ app.use((req, res, next) => isAuthPath(req.path) ? auth.noStore(req, res, next) 
 app.get('/auth.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth.js')));
 require('./lib/photo-assets')(app);
 require('./lib/test-credit').mountTestCredit(app, { auth, store });
+require('./lib/checkout-routes').mountCheckout(app, { auth, orders: checkoutOrders, provider: checkoutProvider, security: programSecurity });
 mountProgram(app, { auth, creators: creatorStore, commissions: commissionProgram, security: programSecurity, isAdmin: emailEhAdmin });
 require('./lib/creator-portal-routes').mountCreatorPortal(app, { auth, portal: creatorPortal, security: programSecurity, enabled: !!creatorStore, isAdmin: emailEhAdmin });
 app.get('/api/session', auth.requireSession, auth.session);
@@ -588,6 +590,7 @@ app.post('/api/verificar-pix', async (req, res) => {
     try {
         const { transaction_id } = req.body;
         if (!transaction_id) return res.status(400).json({ success: false, error: 'ID da transação não informado.' });
+        if (String(transaction_id).startsWith('ip_')) return res.status(400).json({ success: false, error: 'Use a confirmação do checkout para esse pagamento.' });
         if (!await store.paymentBelongsToUser(String(transaction_id), req.auth.email)) {
             return res.status(404).json({ success: false, error: 'Transação não encontrada.' });
         }
@@ -606,7 +609,7 @@ app.post('/api/mercadopago-webhook', async (req, res) => {
         }
         if (programSecurity && !await programSecurity.consume('webhook', req.ip, 120, 60)) return res.sendStatus(429);
         const paymentId = req.query?.['data.id'] || req.query?.id || req.body?.data?.id || req.body?.id;
-        if (paymentId) await store.syncPayment(String(paymentId), consultarPagamento);
+        if (paymentId && !String(paymentId).startsWith('ip_')) await store.syncPayment(String(paymentId), consultarPagamento);
         // Confirmar apenas depois do COMMIT permite ao provedor repetir falhas.
         return res.sendStatus(200);
     } catch (error) {
@@ -1532,8 +1535,28 @@ try {
     await pool.end();
     throw error;
 }
-const app = createApp({ store: createStore(pool, { commissionProgram }), sessions: createSessionStore(pool),
-    creatorStore, simulationProgramStore, creatorPortal, commissionProgram, programSecurity });
+const store = createStore(pool, { commissionProgram });
+const checkoutProvider = process.env.CHECKOUT_PROVIDER || 'mercadopago';
+if (!['mercadopago', 'infinitepay'].includes(checkoutProvider)) {
+    await pool.end();
+    throw new Error('CHECKOUT_PROVIDER inválido.');
+}
+const checkoutSchema = (await pool.query("SELECT to_regclass('public.infinitepay_pedidos') AS relation")).rows[0].relation;
+if (checkoutProvider === 'infinitepay' && (!checkoutSchema || !process.env.INFINITEPAY_HANDLE)) {
+    await pool.end();
+    throw new Error('Aplique a migração 006 e configure INFINITEPAY_HANDLE antes de ativar o checkout.');
+}
+if (checkoutProvider === 'infinitepay') {
+    try { require('./lib/infinitepay-client').createInfinitePayClient({ handle: process.env.INFINITEPAY_HANDLE }); }
+    catch (error) { await pool.end(); throw error; }
+}
+const checkoutOrders = checkoutSchema ? require('./lib/infinitepay-orders').createInfinitePayOrders({
+    pool, store, handle: process.env.INFINITEPAY_HANDLE,
+    origin: process.env.APP_ORIGIN || process.env.RENDER_EXTERNAL_URL,
+}) : null;
+const app = createApp({ store, sessions: createSessionStore(pool),
+    creatorStore, simulationProgramStore, creatorPortal, commissionProgram, programSecurity,
+    checkoutOrders, checkoutProvider });
 let workerRunning = null;
 const runWorker = () => {
     if (!commissionProgram || workerRunning) return;

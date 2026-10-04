@@ -1923,6 +1923,7 @@
     </div>
 
     <script src="/auth.js"></script>
+    <script src="/checkout.js"></script>
     <link rel="stylesheet" href="/social-proofs.css">
     <script src="/social-proofs.js" defer></script>
     <script src="/creator-demo.js"></script>
@@ -3014,7 +3015,13 @@
             document.getElementById('modalPlanos').style.display = 'none';
         }
 
-        function selecionarPlano(idPacote, nomePacote, valor, qtdCreditos) {
+        async function selecionarPlano(idPacote, nomePacote, valor, qtdCreditos) {
+            try {
+                if (await RadarCheckout.buy(authClient, idPacote, obterAfiliadoAtivo())) return;
+            } catch (error) {
+                alert(error.message || 'Não foi possível abrir o pagamento. Tente novamente.');
+                return;
+            }
             quantidadeCreditosComprando = qtdCreditos;
             document.getElementById('modalPlanos').style.display = 'none';
             abrirModalPix(idPacote, nomePacote, valor, qtdCreditos);
