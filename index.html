@@ -3,7 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>radar facial - Investigador de Perfil Biométrico</title>
+    <title>Radar Facial | Busca de perfis por foto</title>
+    <meta name="description" content="Pesquise possíveis correspondências de um rosto em fotos disponíveis na internet. Saiba como usar o Radar Facial, escolher créditos e avaliar os resultados.">
+    <link rel="canonical" href="https://radarfacial.com.br/">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="pt_BR">
+    <meta property="og:site_name" content="Radar Facial">
+    <meta property="og:title" content="Radar Facial | Busca de perfis por foto">
+    <meta property="og:description" content="Uma foto como ponto de partida. Explore possíveis correspondências na internet e confira as fontes dos resultados.">
+    <meta property="og:url" content="https://radarfacial.com.br/">
+    <meta name="twitter:card" content="summary">
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://radarfacial.com.br/#organization","name":"Radar Facial","url":"https://radarfacial.com.br/"},{"@type":"WebSite","@id":"https://radarfacial.com.br/#website","url":"https://radarfacial.com.br/","name":"Radar Facial","inLanguage":"pt-BR","publisher":{"@id":"https://radarfacial.com.br/#organization"}}]}
+    </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Identity Services -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -1527,6 +1539,25 @@
         }
 
 </style>
+    <style>
+        .rf-guide { max-width: 1120px; margin: 64px auto 40px; padding: 0 24px; }
+        .rf-guide .rf-guide-label { color: var(--gold); font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+        .rf-guide h2 { font-size: clamp(1.6rem, 4vw, 2.5rem); line-height: 1.2; margin: 12px 0 16px; }
+        .rf-guide p { color: var(--text-dim); line-height: 1.7; max-width: 760px; }
+        .rf-guide-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin: 28px 0 40px; }
+        .rf-guide-card { background: #0e1627; border: 1px solid #253149; border-radius: 20px; padding: 24px; }
+        .rf-guide-card .rf-step { color: var(--gold); font-weight: 800; font-size: 1.25rem; }
+        .rf-guide-card h3 { font-size: 1.1rem; margin: 16px 0 8px; }
+        .rf-guide-card p { font-size: .95rem; margin-bottom: 0; }
+        .rf-guide-note { border-left: 3px solid var(--gold); padding: 4px 0 4px 20px; margin: 24px 0 48px; }
+        .rf-guide details { border-bottom: 1px solid #253149; padding: 20px 0; }
+        .rf-guide summary { cursor: pointer; font-size: 1.05rem; font-weight: 650; line-height: 1.5; }
+        .rf-guide details p { margin-bottom: 4px; }
+        .rf-guide a { color: var(--gold); text-underline-offset: 4px; }
+        .rf-guide-footer { padding: 28px 0; display: flex; gap: 24px; flex-wrap: wrap; }
+        body.focus-mode .rf-guide { display: none; }
+        @media(max-width: 720px) { .rf-guide { margin-top: 40px; padding: 0 20px; } .rf-guide-grid { grid-template-columns: 1fr; gap: 12px; } .rf-guide-card { padding: 22px; } }
+    </style>
 </head>
 <body>
 
@@ -1582,8 +1613,8 @@
                 <i class="fa-solid fa-shield-halved"></i> Investigador Biométrico AI
             </div>
 
-            <h1>Investigue e encontre qualquer pessoa com <span>uma única foto.</span></h1>
-            <p>Mapeamento biométrico cruzado em tempo real em redes sociais e bancos de dados abertos.</p>
+            <h1>Busque possíveis perfis e imagens com <span>uma foto de rosto.</span></h1>
+            <p>Explore possíveis correspondências em imagens disponíveis na internet e confira as fontes encontradas.</p>
 
             <div class="orbit-container">
                 <div class="orbit-ring" id="orbitRing">
@@ -1640,7 +1671,7 @@
 
             <br>
             <div class="guarantee-badge">
-                <i class="fa-solid fa-shield-halved"></i> Garantia de Varredura: Processamento biométrico de alta precisão em múltiplos bancos de dados.
+                <i class="fa-solid fa-shield-halved"></i> Compare os resultados e confira a fonte. Sem garantia de encontrar uma pessoa ou confirmar sua identidade.
             </div>
         </main>
 
@@ -1660,16 +1691,16 @@
 
         <div class="stats-container" id="statsContainer">
             <div class="stat-card">
-                <div class="val">250M+</div>
-                <div class="lbl">Rostos Mapeados</div>
+                <div class="val">Foto</div>
+                <div class="lbl">Seu ponto de partida</div>
             </div>
             <div class="stat-card">
-                <div class="val">4.85M+</div>
-                <div class="lbl">Buscas Concluídas</div>
+                <div class="val">Fontes</div>
+                <div class="lbl">Confira os links encontrados</div>
             </div>
             <div class="stat-card">
-                <div class="val">99.2%</div>
-                <div class="lbl">Precisão Biométrica</div>
+                <div class="val">Compare</div>
+                <div class="lbl">Avalie cada correspondência</div>
             </div>
         </div>
     </div>
@@ -1682,6 +1713,25 @@
         <a class="rf-proof-more" href="/provas-sociais">Ver todos os vídeos →</a>
         <p class="rf-proof-note">Conteúdos de criadores afiliados ao Radar Facial.</p>
     </section></div>
+    <section class="rf-guide" aria-labelledby="rf-guide-title" id="como-funciona">
+        <div class="rf-guide-label">Da foto às possíveis correspondências</div>
+        <h2 id="rf-guide-title">Como funciona a busca por foto no Radar Facial?</h2>
+        <p>A busca facial usa uma imagem de rosto para procurar possíveis correspondências em fontes disponíveis na internet. O Radar Facial apresenta os resultados encontrados para você comparar as imagens e consultar seus links de origem.</p>
+        <div class="rf-guide-grid">
+            <article class="rf-guide-card"><span class="rf-step">01</span><h3>Escolha uma foto nítida</h3><p>Envie uma imagem ou use a câmera do celular. Enquadre um rosto visível, com boa iluminação e sem objetos cobrindo o rosto.</p></article>
+            <article class="rf-guide-card"><span class="rf-step">02</span><h3>Entre e escolha seus créditos</h3><p>Acesse com sua conta Google e confira os pacotes de pesquisas. Com saldo disponível, inicie a busca pela foto escolhida.</p></article>
+            <article class="rf-guide-card"><span class="rf-step">03</span><h3>Compare imagens e fontes</h3><p>Analise as possíveis correspondências e consulte os links apresentados. Semelhança visual é um ponto de partida para sua verificação.</p></article>
+        </div>
+        <div class="rf-guide-note"><h3>Uma correspondência não confirma uma identidade</h3><p>A cobertura depende das fontes disponíveis e da qualidade da imagem. Uma busca pode não encontrar resultados. O Radar Facial não acessa contas privadas nem garante encontrar um perfil específico em uma rede social.</p></div>
+        <h2>Perguntas sobre pesquisa de rosto por foto</h2>
+        <details><summary>É possível encontrar um perfil usando uma foto?</summary><p>A pesquisa pode encontrar imagens semelhantes e links para páginas onde elas aparecem. Encontrar um perfil depende de a imagem estar disponível nas fontes consultadas. Não há garantia de localizar uma pessoa ou todas as suas contas.</p></details>
+        <details><summary>Isso é igual a uma busca reversa de imagens?</summary><p>Uma busca reversa costuma procurar imagens iguais ou parecidas com a imagem inteira. Na busca facial, o rosto é a referência para procurar possíveis correspondências, inclusive em fotos diferentes. Em ambos os casos, confira a página de origem.</p></details>
+        <details><summary>Posso verificar a foto de um perfil suspeito?</summary><p>Você pode comparar a foto com imagens encontradas em outras páginas. A mesma foto em contextos diferentes pode motivar uma verificação adicional, mas não prova que um perfil seja falso ou que alguém tenha cometido uma fraude.</p></details>
+        <details><summary>Qual foto funciona melhor?</summary><p>Prefira uma foto nítida, com apenas um rosto bem visível e iluminação uniforme. Imagens muito pequenas, desfocadas ou com parte do rosto coberta podem dificultar a busca.</p></details>
+        <details><summary>A pesquisa é gratuita?</summary><p>A pesquisa normal usa créditos. Você pode conferir os valores e a quantidade de pesquisas na opção de pacotes do site antes de comprar. O Modo Simulação é uma área separada, disponível para contas autorizadas.</p></details>
+        <details><summary>Como usar a ferramenta com responsabilidade?</summary><p>Use somente imagens que você tenha direito de utilizar. Respeite a privacidade das pessoas e verifique as fontes antes de tirar conclusões. Resultados de busca não devem ser usados como prova isolada de identidade.</p></details>
+        <nav class="rf-guide-footer" aria-label="Mais sobre o Radar Facial"><a href="#heroSection">Começar uma pesquisa</a><a href="/provas-sociais">Ver vídeos dos criadores</a></nav>
+    </section>
     <div class="user-drawer-backdrop" id="userDrawerBackdrop" onclick="fecharMenuUsuario()" aria-hidden="true"></div>
     <aside class="user-drawer" id="userDrawer" role="dialog" aria-modal="true" aria-labelledby="userDrawerTitle" aria-hidden="true">
         <div class="user-drawer-header">

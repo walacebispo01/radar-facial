@@ -22,6 +22,7 @@ function createApp({ store, sessions, payment: paymentOverride, verifyGoogle,
     appOrigin = process.env.APP_ORIGIN || process.env.RENDER_EXTERNAL_URL } = {}) {
 if (!store) throw new Error('Persistência PostgreSQL obrigatória.');
 const app = express();
+require('./lib/seo').mountSeo(app);
 const auth = createAuth({ sessions, origin: appOrigin, isAdmin: emailEhAdmin,
     verifyGoogle: verifyGoogle || createGoogleVerifier({ audience: process.env.GOOGLE_CLIENT_ID }) });
 
