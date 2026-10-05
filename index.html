@@ -1923,6 +1923,7 @@
     </div>
 
     <script src="/auth.js"></script>
+    <script src="/analytics.js"></script>
     <script src="/checkout.js"></script>
     <link rel="stylesheet" href="/social-proofs.css">
     <script src="/social-proofs.js" defer></script>
@@ -1954,6 +1955,10 @@
 
         const authClient = window.RadarAuth.createClient({
             onSession: aplicarSessao
+        });
+        window.addEventListener('radar-analytics-withdraw', () => {
+            authClient.request('/api/checkout/analytics-consent', { method: 'POST',
+                headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
         });
 
         const AFILIADO_STORAGE_KEY = 'radar_facial_afiliado';

@@ -30,6 +30,13 @@ test('InfinitePay: pedidos, confirmação, duplicação, isolamento, falhas e re
     const { migrateCheckout } = require('../scripts/migrate-checkout');
     assert.deepEqual((await migrateCheckout(pool)).applied, ['006-infinitepay.sql']);
     assert.deepEqual((await migrateCheckout(pool)).skipped, ['006-infinitepay.sql']);
+    const { migrateAnalytics } = require('../scripts/migrate-analytics');
+    assert.deepEqual((await migrateAnalytics(pool)).applied, ['007-google-analytics.sql']);
+    assert.deepEqual((await migrateAnalytics(pool)).skipped, ['007-google-analytics.sql']);
+    const analyticsCalls = [];
+    let analyticsFail = false;
+    const analytics = require('../lib/ga4').createAnalytics({ pool, measurementId: 'G-TEST123456', apiSecret: 'test-secret',
+        fetchImpl: async (url, init) => { analyticsCalls.push({ url, payload: JSON.parse(init.body) }); return { ok: !analyticsFail }; } });
     const commissions = require('../lib/commission-program').createCommissionProgram(pool);
     const store = createStore(pool, { commissionProgram: commissions });
     await store.login('buyer@example.test');
@@ -43,6 +50,10 @@ test('InfinitePay: pedidos, confirmação, duplicação, isolamento, falhas e re
     const orders = createInfinitePayOrders({ pool, store, handle: 'original', origin: 'https://radarfacial.com.br', clientFactory });
     const create = (key, packageId = 'avulso') => orders.create({ email: 'buyer@example.test', packageId, requestKey: key });
     const first = await create('a'.repeat(16));
+    await analytics.record(first.orderId, 'other@example.test', { consent: true, clientId: '123.456', sessionId: 123 });
+    assert.equal((await db.query('SELECT count(*) AS n FROM ga4_pedidos')).rows[0].n, 0);
+    await analytics.record(first.orderId, 'buyer@example.test', { consent: true, clientId: '123.456', sessionId: 123, value: 9999, email: 'never-sent' });
+    assert.equal((await analytics.processPending()).sent, 0);
     const repeated = await Promise.all(Array.from({ length: 5 }, () => create('a'.repeat(16))));
     assert.ok(repeated.every(order => order.orderId === first.orderId));
     assert.equal(links, 1);
@@ -59,8 +70,25 @@ test('InfinitePay: pedidos, confirmação, duplicação, isolamento, falhas e re
     const confirmed = await Promise.all(Array.from({ length: 5 }, () => orders.confirm(receipt)));
     assert.ok(confirmed.every(result => result.creditos === 1));
     assert.equal(await store.login('buyer@example.test'), 1);
+    analyticsFail = true;
+    assert.equal((await analytics.processPending()).failed, 1);
+    assert.equal((await db.query('SELECT enviado_em FROM ga4_pedidos')).rows[0].enviado_em, null);
+    await db.exec("UPDATE ga4_pedidos SET tentar_em=CURRENT_TIMESTAMP");
+    analyticsFail = false;
+    assert.equal((await analytics.processPending()).sent, 1);
+    assert.equal((await analytics.processPending()).sent, 0);
+    const event = analyticsCalls.at(-1).payload;
+    assert.equal(event.events[0].name, 'purchase');
+    assert.equal(event.events[0].params.value, 12.99);
+    assert.equal(event.events[0].params.transaction_id, first.orderId);
+    assert.equal(event.client_id, '123.456');
+    assert.ok(!JSON.stringify(event).includes('@'));
+    assert.ok(!JSON.stringify(event).includes('never-sent'));
     assert.equal((await create('a'.repeat(16))).alreadyPaid, true);
     const second = await create('c'.repeat(16));
+    await analytics.record(second.orderId, 'buyer@example.test', { consent: true, clientId: '222.333', sessionId: 456 });
+    await analytics.withdraw('buyer@example.test');
+    assert.equal((await db.query('SELECT count(*) AS n FROM ga4_pedidos WHERE order_id=$1', [second.orderId])).rows[0].n, 0);
     await assert.rejects(orders.confirm({ ...receipt, orderId: second.orderId }));
     assert.equal(await store.login('buyer@example.test'), 1);
     assert.equal((await db.query('SELECT credited FROM transacoes WHERE payment_id=$1', [second.orderId])).rows[0].credited, false);
@@ -94,13 +122,16 @@ test('InfinitePay: pedidos, confirmação, duplicação, isolamento, falhas e re
     const { createApp } = require('../server');
     const app = createApp({ store, sessions: createSessionStore(pool), payment: {},
         verifyGoogle: async credential => ({ email: `${credential}@example.test`, sub: credential }),
-        appOrigin: 'https://radarfacial.com.br', checkoutOrders: orders, checkoutProvider: 'mercadopago' });
+        appOrigin: 'https://radarfacial.com.br', checkoutOrders: orders, checkoutProvider: 'mercadopago', analytics });
     const server = app.listen(0, '127.0.0.1');
     await new Promise(resolve => server.once('listening', resolve));
     t.after(() => new Promise(resolve => server.close(resolve)));
     const base = `http://127.0.0.1:${server.address().port}`;
     const headers = { origin: 'https://radarfacial.com.br', 'content-type': 'application/json', 'x-radar-request': '1' };
     assert.equal((await fetch(base + '/api/checkout/config')).status, 401);
+    const publicAnalytics = await (await fetch(base + '/api/analytics/config')).json();
+    assert.deepEqual(publicAnalytics, { measurementId: 'G-TEST123456' });
+    assert.equal((await fetch(base + '/api/checkout/analytics-consent', { method: 'POST', headers, body: '{}' })).status, 401);
     const login = await fetch(base + '/api/login-google', { method: 'POST', headers, body: JSON.stringify({ credential: 'buyer' }) });
     const session = await login.json();
     const authenticated = { ...headers, cookie: login.headers.get('set-cookie').split(';')[0], 'x-csrf-token': session.csrfToken };

@@ -18,7 +18,7 @@ const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 function createApp({ store, sessions, payment: paymentOverride, verifyGoogle,
     creatorStore, simulationProgramStore = creatorStore, creatorPortal, commissionProgram, programSecurity,
-    checkoutOrders, checkoutProvider = 'mercadopago', webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET,
+    checkoutOrders, analytics, checkoutProvider = 'mercadopago', webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET,
     appOrigin = process.env.APP_ORIGIN || process.env.RENDER_EXTERNAL_URL } = {}) {
 if (!store) throw new Error('Persistência PostgreSQL obrigatória.');
 const app = express();
@@ -36,7 +36,7 @@ app.use((req, res, next) => isAuthPath(req.path) ? auth.noStore(req, res, next) 
 app.get('/auth.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'auth.js')));
 require('./lib/photo-assets')(app);
 require('./lib/test-credit').mountTestCredit(app, { auth, store });
-require('./lib/checkout-routes').mountCheckout(app, { auth, orders: checkoutOrders, provider: checkoutProvider, security: programSecurity });
+require('./lib/checkout-routes').mountCheckout(app, { auth, orders: checkoutOrders, provider: checkoutProvider, security: programSecurity, analytics });
 mountProgram(app, { auth, creators: creatorStore, commissions: commissionProgram, security: programSecurity, isAdmin: emailEhAdmin });
 require('./lib/creator-portal-routes').mountCreatorPortal(app, { auth, portal: creatorPortal, security: programSecurity, enabled: !!creatorStore, isAdmin: emailEhAdmin });
 app.get('/api/session', auth.requireSession, auth.session);
@@ -1554,9 +1554,21 @@ const checkoutOrders = checkoutSchema ? require('./lib/infinitepay-orders').crea
     pool, store, handle: process.env.INFINITEPAY_HANDLE,
     origin: process.env.APP_ORIGIN || process.env.RENDER_EXTERNAL_URL,
 }) : null;
+const analyticsSchema = (await pool.query("SELECT to_regclass('public.ga4_pedidos') AS relation")).rows[0].relation;
+const analytics = analyticsSchema ? require('./lib/ga4').createAnalytics({ pool,
+    measurementId: process.env.GA4_MEASUREMENT_ID, apiSecret: process.env.GA4_API_SECRET }) : null;
+let analyticsRunning = null;
+const runAnalytics = () => {
+    if (!analytics?.enabled || analyticsRunning) return;
+    analyticsRunning = analytics.processPending().catch(() => console.error('Fila de métricas temporariamente indisponível.'))
+        .finally(() => { analyticsRunning = null; });
+};
+const analyticsTimer = analytics?.enabled ? setInterval(runAnalytics, 15000) : null;
+analyticsTimer?.unref();
+runAnalytics();
 const app = createApp({ store, sessions: createSessionStore(pool),
     creatorStore, simulationProgramStore, creatorPortal, commissionProgram, programSecurity,
-    checkoutOrders, checkoutProvider });
+    checkoutOrders, checkoutProvider, analytics });
 let workerRunning = null;
 const runWorker = () => {
     if (!commissionProgram || workerRunning) return;
@@ -1619,8 +1631,10 @@ const shutdown = () => {
     if (shuttingDown) return;
     shuttingDown = true;
     clearInterval(workerTimer);
+    clearInterval(analyticsTimer);
     server.close(async () => {
         await workerRunning;
+        await analyticsRunning;
         await pool.end().catch(() => { process.exitCode = 1; });
     });
 };
@@ -1629,7 +1643,8 @@ process.once('SIGINT', shutdown);
 server.on('error', () => {
     console.error('Não foi possível iniciar o servidor HTTP.');
     clearInterval(workerTimer);
-    Promise.resolve(workerRunning).then(() => pool.end()).catch(() => {});
+    clearInterval(analyticsTimer);
+    Promise.all([workerRunning, analyticsRunning]).then(() => pool.end()).catch(() => {});
     process.exitCode = 1;
 });
 return server;

@@ -14,6 +14,7 @@
     "test:browser:programa": "node scripts/test-creator-panel-browser.js && node scripts/test-creator-demo-browser.js",
     "migrate:creators": "node scripts/migrate-creators.js",
     "migrate:checkout": "node scripts/migrate-checkout.js",
+    "migrate:analytics": "node scripts/migrate-analytics.js",
     "check:checkout": "node --check lib/infinitepay-client.js && node --check lib/infinitepay-orders.js && node --check lib/checkout-routes.js && node --check public/checkout.js && node --check public/payment-return.js && node --check scripts/migrate-checkout.js"
   },
   "keywords": [],

@@ -14,9 +14,10 @@
                 const request = saved?.pacote === pacote && saved?.afiliado === afiliado ? saved :
                     { pacote, afiliado, key: crypto.randomUUID() };
                 sessionStorage.setItem('radar_checkout_request', JSON.stringify(request));
+                const analytics = await window.RadarAnalytics?.context().catch(() => null);
                 const response = await auth.request('/api/checkout/create', { method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Idempotency-Key': request.key },
-                    body: JSON.stringify({ pacote, afiliado_codigo: afiliado }) });
+                    body: JSON.stringify({ pacote, afiliado_codigo: afiliado, analytics }) });
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.error || 'Não foi possível abrir o checkout.');
                 if (data.alreadyPaid) {
@@ -26,6 +27,7 @@
                 const url = new URL(data.url);
                 if (url.protocol !== 'https:' || !['checkout.infinitepay.com.br', 'checkout.infinitepay.io'].includes(url.hostname) ||
                     url.username || url.password || url.port) throw new Error('Endereço de pagamento inválido.');
+                if (data.item) await window.RadarAnalytics?.beginCheckout(data.item).catch(() => {});
                 window.location.assign(url.href);
                 return true;
             } finally { busy = false; }
