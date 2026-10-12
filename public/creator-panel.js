@@ -3,7 +3,7 @@
   const $ = selector => document.querySelector(selector);
   const node = (tag, text, className) => { const el = document.createElement(tag); if (text != null) el.textContent = String(text); if (className) el.className = className; return el; };
   const state = { me: null, activeTab: 'commissions', pendingTab: 'commissions', commissionPage: 1, creatorPage: 1, networkPage: 1, networkId: '', keys: new Map(), requestVersions: new Map() };
-  const currency = value => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 6 });
+  const currency = value => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const date = value => value ? new Date(value).toLocaleString('pt-BR') : '—';
   const labels = { ativo: 'Ativo', suspenso: 'Suspenso', approved: 'Aprovado', pending: 'Pendente', refunded: 'Reembolsado', cancelled: 'Cancelado', vendedor: 'Vendedor', indicador: 'Indicador direto', inicial: 'Criador inicial', demais: 'Demais níveis', comissao: 'Comissão', estorno: 'Estorno', partial: 'Parcial', full: 'Integral' };
   const label = value => labels[value] || (String(value).startsWith('nivel_') ? 'Nível ' + String(value).slice(6) : value) || '—';
@@ -68,7 +68,7 @@
       const data = await api('/comissoes' + query({ ...filters, page }));
       return () => {
         const totals = data.totals || {}; $('#metrics').replaceChildren();
-        [['Comissão original', totals.comissao], ['Estornos', totals.estorno], ['Comissão líquida', totals.saldo]].forEach(([title, amount]) => { const card = node('div', null, 'metric'); card.append(node('span', title), node('strong', currency(amount))); $('#metrics').append(card); });
+        [['Vendas confirmadas', totals.vendas ?? 0, false], ['Faturamento confirmado', totals.faturamento, true], ['Comissão original', totals.comissao, true], ['Estornos', totals.estorno, true], ['Comissão líquida', totals.saldo, true]].forEach(([title, amount, money]) => { const card = node('div', null, 'metric'); card.append(node('span', title), node('strong', money ? currency(amount) : String(Number(amount || 0)))); $('#metrics').append(card); });
         table($('#commission-list'), data.items || [], [
           { title: 'Pagamento', value: row => button(row.payment_id, () => paymentDetail(row.payment_id)) },
           { title: 'Data', value: row => date(row.criado_em) },
@@ -109,7 +109,7 @@
   }
   function manageCreator(creator) {
     const body = detail(creator.nome || creator.email); fields(body, [['ID', creator.id], ['E-mail', creator.email], ['Código de indicação', creator.afiliado_codigo], ['Indicador', creator.parent_id], ['Nível', creator.depth]]);
-    const form = node('form', null, 'stack'); body.append(form); inputField(form, 'Nome', 'nome', creator.nome, 'text', { required: true, maxLength: 120 }); inputField(form, 'Comissão-base (%) nas próximas vendas', 'percentual', creator.percentual, 'number', { min: '0', max: '30', step: '0.01', required: true });
+    const form = node('form', null, 'stack'); body.append(form); inputField(form, 'Nome', 'nome', creator.nome, 'text', { required: true, maxLength: 120 }); inputField(form, 'Comissão-base da venda própria (%)', 'percentual', creator.percentual, 'number', { min: '10', max: '30', step: '0.01', required: true });
     const statusWrap = node('label', 'Status'); const select = node('select'); select.name = 'status'; [['ativo', 'Ativo'], ['suspenso', 'Suspenso']].forEach(([value, title]) => { const option = node('option', title); option.value = value; select.append(option); }); select.value = creator.status; statusWrap.append(select); form.append(statusWrap);
     const demoLabel = node('label', null, 'check'); const check = node('input'); Object.assign(check, { name: 'demo_enabled', type: 'checkbox', checked: !!creator.demo_enabled }); demoLabel.append(check, node('span', 'Liberar cenários de gravação')); form.append(demoLabel); inputField(form, 'Motivo da alteração', 'motivo', '', 'text', { required: true, maxLength: 500 }); const save = node('button', 'Salvar alterações'); save.type = 'submit'; form.append(save, node('p', '', 'form-status'));
     bindForm(form, async data => { await api('/admin/criadores/' + encodeURIComponent(creator.id), { method: 'PATCH', body: { ...data, percentual: Number(data.percentual), demo_enabled: check.checked } }); await creators(state.creatorPage); });

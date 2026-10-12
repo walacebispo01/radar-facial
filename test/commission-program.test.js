@@ -81,6 +81,7 @@ test("snapshot, outbox durável, legado, filtros, reembolsos e isolamento", asyn
     "migrations/001-sessoes.sql",
     "migrations/002-criadores.sql",
     "migrations/003-comissoes-rede.sql",
+    "migrations/006-infinitepay.sql",
   ])
     await db.exec(
       fs.readFileSync(path.join(__dirname, "../sql", file), "utf8"),
@@ -103,7 +104,7 @@ test("snapshot, outbox durável, legado, filtros, reembolsos e isolamento", asyn
   }
   let sequence = 0;
   async function payment(af = "a4", legacy = false) {
-    const id = String(++sequence);
+    const id = String(++sequence).padStart(12, "0");
     const data = {
       payment_id: id,
       email: `buyer${id}@test.com`,
